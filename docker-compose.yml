@@ -1,0 +1,9 @@
+version: '3'
+services:
+  fluxdns:
+    build: .
+    network_mode: "host"
+    volumes:
+     - ".:/usr/src/app"
+    env_file:
+      - ".env"
