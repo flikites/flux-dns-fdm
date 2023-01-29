@@ -1,7 +1,7 @@
 experimental/not tested fully
-# flux-dns-fdm
+# flux-dns-fdm-technitium
 
-DNS based Flux Domain Manager: 
+DNS based Flux Domain Manager For Technitium DNS Server: 
 
 A script that can be run locally alongside a [Technitium DNS](https://github.com/TechnitiumSoftware/DnsServer) server deployment. It will automatically add your [Flux](https://runonflux.io) deployment IPs to a specified domain name and zone within your DNS server using the Technitium DNS Servers API
 
