@@ -1,15 +1,18 @@
-const { workerData } = require("worker_threads");
-const axios = require("axios");
 const dotenv = require("dotenv");
 dotenv.config();
+const axios = require("axios");
 
-const { findMostCommonResponse, getFluxNodes } = require("./utils");
+const {
+  findMostCommonResponse,
+  getFluxNodes,
+  checkConnection,
+} = require("./utils");
 
 const DNS_SERVER_ADDRESS =
   process.env.DNS_SERVER_ADDRESS ?? "http://146.190.112.16:5380";
 const DNS_SERVER_TOKEN = process.env.DNS_SERVER_TOKEN;
 
-async function checkIP() {
+async function checkIP(workerData) {
   const { app_name, app_port, zone_name, domain_name } = workerData;
   try {
     // Array of URLs
@@ -75,8 +78,12 @@ async function checkIP() {
     for (const badIp of badIps) {
       try {
         // we are adding extra check here if get success response we will not
-        const r = await axios.get(`http://${badIp}:${app_port}`);
-        console.log("r ", r.status);
+        const connected = await checkConnection(badIp, app_port);
+        // const r = await axios.get(`http://${badIp}:${app_port}`);
+        // console.log("r ", r.status);
+        if (!connected) {
+          throw new Error(`unable to connect ${`http://${badIp}:${app_port}`}`);
+        }
       } catch (error) {
         console.log(error?.message ?? error);
         console.log(`not healthy ${`http://${badIp}:${app_port}`}`);
@@ -99,8 +106,9 @@ async function createOrDeleteRecord(
   zone_name
 ) {
   // Check if the selected IP returns success response
-  const checkIpResponse = await axios.get(`http://${selectedIp}:${app_port}`);
-  if (checkIpResponse.status === 200) {
+  // const checkIpResponse = await axios.get(`http://${selectedIp}:${app_port}`);
+  const connected = await checkConnection(selectedIp, app_port);
+  if (connected) {
     if (!records.includes(selectedIp)) {
       console.log(
         `Creating new record for IP: ${selectedIp} in Technitium DNS Server`
@@ -114,7 +122,7 @@ async function createOrDeleteRecord(
         `Record for IP: ${selectedIp} already exists in Technitium DNS Server`
       );
     }
-  } else if (checkIpResponse.status !== 200 && records.includes(selectedIp)) {
+  } else if (!connected && records.includes(selectedIp)) {
     console.log(`Unsuccessful response from IP: ${selectedIp}`);
     // Delete DNS record
     await deleteRecord(selectedIp, domain_name, zone_name);
@@ -168,4 +176,7 @@ function getDomain(domain) {
   }
 }
 
-checkIP();
+// checkIP();
+module.exports = {
+  checkIP,
+};

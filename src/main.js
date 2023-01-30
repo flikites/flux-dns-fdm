@@ -1,8 +1,8 @@
-const { Worker, MessageChannel } = require("worker_threads");
-const cron = require("node-cron");
-const axios = require("axios");
 const dotenv = require("dotenv");
 dotenv.config();
+const cron = require("node-cron");
+const axios = require("axios");
+const { checkIP } = require("./app");
 
 const DNS_SERVER_ADDRESS =
   process.env.DNS_SERVER_ADDRESS ?? "http://146.190.112.16:5380";
@@ -19,26 +19,17 @@ async function main() {
 
   for (let i = 0; i < APPS_NAME.length; i++) {
     console.log("Worker: ", i + 1);
-    const worker = new Worker(__dirname + "/app.js", {
-      workerData: {
+    workers.push(
+      checkIP({
         app_name: APPS_NAME[i],
         app_port: APPS_PORT[i],
         zone_name: DNS_ZONES_NAME[i],
         domain_name: DOMAINS_NAME[i],
-      },
-    });
-    worker.on("message", (message) => {
-      console.log(message);
-    });
-    worker.on("exit", (code) => {
-      if (code !== 0)
-        console.error(new Error(`Worker stopped with exit code ${code}`));
-    });
-    worker.on("error", (err) => {
-      console.log("worker error ", err?.message ?? err);
-    });
-    workers.push(worker);
+      })
+    );
   }
+
+  await Promise.all(workers);
 }
 
 async function createNotAvailableZones(zones = []) {

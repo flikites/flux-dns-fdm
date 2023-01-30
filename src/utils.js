@@ -1,4 +1,5 @@
 const fs = require("fs").promises;
+const net = require("net");
 
 async function getFluxNodes() {
   try {
@@ -31,7 +32,27 @@ function findMostCommonResponse(arr) {
   return mostCommon;
 }
 
+function checkConnection(host, port, timeout = 3000) {
+  return new Promise((resolve, reject) => {
+    const client = new net.Socket();
+    client.setTimeout(timeout);
+    client.connect(port, host, () => {
+      client.end();
+      resolve(true);
+    });
+    client.on("error", (error) => {
+      client.end();
+      reject(error);
+    });
+    client.on("timeout", () => {
+      client.end();
+      reject(new Error(`Connection timed out after ${timeout} milliseconds`));
+    });
+  });
+}
+
 module.exports = {
   findMostCommonResponse,
   getFluxNodes,
+  checkConnection,
 };
