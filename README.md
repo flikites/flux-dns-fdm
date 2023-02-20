@@ -19,6 +19,8 @@ The downfall to using this method in conjunction with flux, is that domain names
 3. You need to specify the zone and specifiy the domain name(s) you plan to use in the .env file.
 4. You need to specify your flux app and port in the .env file.
 
+Please see the example .env file to use as a template for gettting started.
+
 # Install
 
 To run this app in Ubuntu/Debain/Linux follow the below instructions:
@@ -61,3 +63,9 @@ APP_PORT=35860
 DNS_ZONE_NAME=<your-cloudflare-dns-zone>
 DOMAIN_NAME=<domain-name-that-matches-zone> 
 ```
+
+## Cron Schedule
+
+The script makes checks and updates every 10 minutes using a cron job.
+
+You can update the cron expression on line 86 of `/src/main.js`
