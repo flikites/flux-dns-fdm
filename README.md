@@ -19,7 +19,7 @@ You can run a single instance of this script to update multiple domains and flux
 1. You need an active API created for your Cloudflare account.
 2. You need to create the zone in Cloudflare and note the ZONE ID
 3. You need to specify the zone and specifiy the domain name(s) you plan to use in the .env file.
-4. You need to specify your flux app and port in the .env file.
+4. You need to specify your flux app name and port in the .env file.
 
 Please see the example .env file to use as a template for gettting started.
 
