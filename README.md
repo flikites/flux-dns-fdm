@@ -80,18 +80,19 @@ The ENV variables that you need to change are listed below.
 
 Static Example:
 
+```
 APP_NAME=app1,app2,port3
 APP_PORT=port1,port2,port3
 DNS_ZONE_NAME=zone1,zone2,zone3
 DOMAIN_NAME=domain1,domain2,domain3
-
+```
 Actual Example:
-
+```
 APP_NAME=nostr,dane,dane
 APP_PORT=35860,33333,33333
 DNS_ZONE_NAME=1f,1f,1f
 DOMAIN_NAME=d1.lootlink.xyz,d2.lootlink.xyz,d3.lootlink.xyz
-
+```
 In the "Actual Example" above, I used the same Cloudflare ZONE ID for all 3 flux apps, which in turn led to the domain name using the same prefix (lootlink.xyz) 
 
 Your Zone ID MUST be the matching zone for the corresponding domain name.
