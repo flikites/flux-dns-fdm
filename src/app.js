@@ -1,6 +1,5 @@
 const dotenv = require("dotenv");
 dotenv.config();
-// const { workerData } = require("worker_threads");
 const axios = require("axios");
 
 const {
@@ -82,24 +81,22 @@ async function createOrDeleteRecord(
   zone_name
 ) {
   // Check if the selected IP returns success response
-  // const checkIpResponse = await axios.get(`http://${selectedIp}:${app_port}`);
   const connected = await checkConnection(selectedIp, app_port);
   if (connected) {
     if (!records.includes(selectedIp)) {
       console.log(
-        `Creating new record for IP: ${selectedIp} in Power DNS Server`
+        `Creating new record for IP: ${selectedIp} in Cloudflare DNS Server`
       );
       // Create new DNS record
-      await api.post("", {
-        action: "addRecord",
-        zone: zone_name,
+      await api.post(`/zones/${zone_name}/dns_records`, {
         type: "A",
         name: domain_name,
         content: selectedIp,
+        ttl: 3600,
       });
     } else {
       console.log(
-        `Record for IP: ${selectedIp} already exists in Power DNS Server`
+        `Record for IP: ${selectedIp} already exists in Cloudflare DNS Server`
       );
     }
   } else if (!connected && records.includes(selectedIp)) {

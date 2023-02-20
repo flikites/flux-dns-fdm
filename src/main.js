@@ -1,14 +1,21 @@
 const dotenv = require("dotenv");
 dotenv.config();
 const cron = require("node-cron");
-const axios = require("axios");
 const { api, checkConnection } = require("./utils");
 const { checkIP } = require("./app");
 
-const APPS_NAME = process.env.APP_NAME?.split(",");
-const APPS_PORT = process.env.APP_PORT?.split(",");
-const DNS_ZONES_NAME = process.env.DNS_ZONE_NAME?.split(",");
-const DOMAINS_NAME = process.env.DOMAIN_NAME?.split(",");
+const APPS_NAME = process.env.APP_NAME?.split(",")
+  .filter((d) => d.trim())
+  .map((d) => d.trim());
+const APPS_PORT = process.env.APP_PORT?.split(",")
+  .filter((d) => d.trim())
+  .map((d) => d.trim());
+const DNS_ZONES_NAME = process.env.DNS_ZONE_NAME?.split(",")
+  .filter((d) => d.trim())
+  .map((d) => d.trim());
+const DOMAINS_NAME = process.env.DOMAIN_NAME?.split(",")
+  .filter((d) => d.trim())
+  .map((d) => d.trim());
 
 async function main() {
   let workers = [];
@@ -42,17 +49,14 @@ async function getHealthyIp(zone, ports) {
   console.log("=============zone=============");
 
   const workingIPs = [];
-  const { data } = await api.post("", {
-    action: "getRecords",
-    zone: zone,
-  });
-  const records = data?.data?.filter((item) => item.type === "A") ?? [];
+  const { data } = await api.get(`/zones/${zone}/dns_records?type=A`);
+  // const records = data?.result?.filter((item) => item.type === "A") ?? [];
+  const records = data?.result ?? [];
   for (const record of records) {
     let isHealthy = false;
     for (const port of ports) {
       try {
         console.log(`checking http://${record.content}:${port}`);
-        // const { status } = await axios.get(`http://${record.content}:${port}`);
         const connected = await checkConnection(record.content, port);
         if (connected) {
           isHealthy = true;
@@ -70,11 +74,7 @@ async function getHealthyIp(zone, ports) {
         `Health check failed IP:${record.content} deleting from dns server`
       );
       await api
-        .post("", {
-          action: "deleteRecord",
-          zone: zone,
-          record: record.uuid,
-        })
+        .delete(`/zones/${zone}/dns_records/${record.id}`)
         .catch(console.log);
     }
   }
@@ -83,7 +83,7 @@ async function getHealthyIp(zone, ports) {
 
 if (require.main === module) {
   main();
-  cron.schedule("*/15 * * * *", () => {
+  cron.schedule("*/10 * * * *", () => {
     main();
   });
 }

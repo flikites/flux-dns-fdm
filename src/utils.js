@@ -3,7 +3,7 @@ const net = require("net");
 const axios = require("axios");
 
 const api = axios.create({
-  baseURL: process.env.DNS_SERVER_ADDRESS ?? "https://varo.domains/api",
+  baseURL: process.env.DNS_SERVER_ADDRESS,
   headers: {
     Authorization: `Bearer ${process.env.DNS_SERVER_API_KEY}`,
   },
