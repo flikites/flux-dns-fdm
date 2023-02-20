@@ -6,11 +6,13 @@ You must pull the `Cloudflare` branch for use with cloudflare.
 
 DNS based Flux Domain Manager For Cloudflare:
 
-A script that can be run pretty much anywhere, it does not require public ports to be open. (outgoing internet connection is required)
-
 It will automatically add your [Flux](https://runonflux.io) deployment IPs to a specified domain name and zone within your Cloudflare DNS server account using the Cloudflare API
 
+This script that can be run pretty much anywhere, it does not require public ports to be open. (outgoing internet connection is required)
+
 The downfall to using this method in conjunction with flux, is that domain names will need the port appended to the end of the URL to access the application on the port it is hosted on. (on flux)
+
+You can run a single instance of this script to update multiple domains and flux apps at one time. (See Multiple Domains & Apps below)
 
 # Pre-Requisites
 
@@ -69,3 +71,27 @@ DOMAIN_NAME=<domain-name-that-matches-zone>
 The script makes checks and updates every 10 minutes using a cron job.
 
 You can update the cron expression on line 86 of `/src/main.js`
+
+## Multiple Domains & Apps
+
+You can specify multiple flux apps and domain names by using comma seperated ENV variables.
+
+The ENV variables that you need to change are listed below.
+
+Static Example:
+
+APP_NAME=app1,app2,port3
+APP_PORT=port1,port2,port3
+DNS_ZONE_NAME=zone1,zone2,zone3
+DOMAIN_NAME=domain1,domain2,domain3
+
+Actual Example:
+
+APP_NAME=nostr,dane,dane
+APP_PORT=35860,33333,33333
+DNS_ZONE_NAME=1f,1f,1f
+DOMAIN_NAME=d1.lootlink.xyz,d2.lootlink.xyz,d3.lootlink.xyz
+
+In the "Actual Example" above, I used the same Cloudflare ZONE ID for all 3 flux apps, which in turn led to the domain name using the same prefix (lootlink.xyz) 
+
+Your Zone ID MUST be the matching zone for the corresponding domain name.
