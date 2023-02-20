@@ -2,9 +2,11 @@ experimental/not tested fully
 
 # flux-dns-fdm-cloudflare
 
+DNS based Flux Domain Manager For Cloudflare:
+
 You must pull the `Cloudflare` branch for use with cloudflare.
 
-DNS based Flux Domain Manager For Cloudflare:
+`git clone --branch cloudflare https://github.com/FliKites/flux-dns-fdm.git`
 
 It will automatically add your [Flux](https://runonflux.io) deployment IPs to a specified domain name and zone within your Cloudflare DNS server account using the Cloudflare API.
 
