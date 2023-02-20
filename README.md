@@ -6,7 +6,9 @@ You must pull the `Cloudflare` branch for use with cloudflare.
 
 DNS based Flux Domain Manager For Cloudflare:
 
-It will automatically add your [Flux](https://runonflux.io) deployment IPs to a specified domain name and zone within your Cloudflare DNS server account using the Cloudflare API
+It will automatically add your [Flux](https://runonflux.io) deployment IPs to a specified domain name and zone within your Cloudflare DNS server account using the Cloudflare API.
+
+If the domains don't exist within the zone, they will be automatically created and added for you.
 
 This script that can be run pretty much anywhere, it does not require public ports to be open. (outgoing internet connection is required)
 
