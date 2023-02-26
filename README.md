@@ -1,5 +1,7 @@
 experimental/not tested fully
 
+WARNING: Currently this branch will remove any A records not associated with Flux apps. This will be fixed in the coming weeks.
+
 # flux-dns-fdm-cloudflare
 
 DNS based Flux Domain Manager For Cloudflare:
