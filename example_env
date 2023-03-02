@@ -1,6 +1,6 @@
-DNS_SERVER_ADDRESS=
-DNS_SERVER_API_KEY=
-APP_NAME=
-APP_PORT=
-DNS_ZONE_NAME=
-DOMAIN_NAME=
+DNS_SERVER_ADDRESS=https://api.cloudflare.com/client/v4
+DNS_SERVER_API_KEY=<your-api-key>
+APP_NAME=<flux-app-name>
+APP_PORT=<flux-app-port>
+DNS_ZONE_NAME=<your-cloudflare-dns-zone>
+DOMAIN_NAME=<domain-name-that-matches-zone>
