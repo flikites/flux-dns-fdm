@@ -124,7 +124,7 @@ async function createOrDeleteRecord(selectedIp, appPort, domainName, zoneName) {
         type: "A",
         name: domainName,
         content: selectedIp,
-        ttl: 3600,
+        ttl: 60,
       });
     } else {
       console.log(
