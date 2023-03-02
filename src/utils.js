@@ -41,6 +41,7 @@ function findMostCommonResponse(arr) {
 }
 
 function checkConnection(host, port, timeout = 3000) {
+  console.log(`checking connection for ${host}:${port}`);
   return new Promise((resolve, reject) => {
     const client = new net.Socket();
     client.setTimeout(timeout);

@@ -10,8 +10,7 @@ const {
 } = require("./utils");
 
 async function checkIP(workerData) {
-  const { app_name, app_port, zone_name, domain_name, working_addresses } =
-    workerData;
+  const { app_name, app_port, zone_name, domain_name } = workerData;
   try {
     // Array of URLs
     const fluxNodes = await getFluxNodes();
@@ -53,17 +52,10 @@ async function checkIP(workerData) {
     console.log("app_name: ", app_name);
     console.log("app_port: ", app_port);
     console.log("flux Consensus Ip list for app: ", commonIps);
-    console.log("dns server retunrned IP: ", working_addresses);
 
     for (const ip of commonIps) {
       try {
-        await createOrDeleteRecord(
-          ip,
-          working_addresses,
-          app_port,
-          domain_name,
-          zone_name
-        );
+        await createOrDeleteRecord(ip, app_port, domain_name, zone_name);
       } catch (error) {
         console.log(error?.message ?? error);
       }
@@ -73,37 +65,76 @@ async function checkIP(workerData) {
   }
 }
 
-async function createOrDeleteRecord(
-  selectedIp,
-  records = [],
-  app_port,
-  domain_name,
-  zone_name
-) {
+async function createOrDeleteRecord(selectedIp, appPort, domainName, zoneName) {
   // Check if the selected IP returns success response
-  const connected = await checkConnection(selectedIp, app_port);
-  if (connected) {
-    if (!records.includes(selectedIp)) {
+  const isConnected = await checkConnection(selectedIp, appPort);
+  const { data: r2 } = await axios.get(
+    `https://api.incolumitas.com/?q=${selectedIp}`
+  );
+  let isGood = true;
+  if (
+    r2?.is_datacenter ||
+    r2?.is_tor ||
+    r2?.is_proxy ||
+    r2?.is_vpn ||
+    r2?.is_abuser
+  ) {
+    isGood = false;
+    console.log("bad user ip detected: ", selectedIp);
+  }
+  console.log(
+    `Checking if IP exists /zones/${zoneName}/dns_records?type=A&name=${domainName}&content=${selectedIp}`
+  );
+
+  const records = await api
+    .get(`/zones/${zoneName}/dns_records?type=A&name=${domainName}`)
+    .then(async ({ data }) => {
+      const validRecords = [];
+      for (const record of data?.result ?? []) {
+        try {
+          const isConnected = await checkConnection(record.content, appPort);
+          if (isConnected) {
+            validRecords.push(record);
+          } else {
+            console.log(
+              `Deleting bad record: IP ${record.content} Domain ${domainName}`
+            );
+            await api.delete(`/zones/${zoneName}/dns_records/${record.id}`);
+          }
+        } catch (error) {
+          console.log(
+            `Deleting bad record: IP ${record.content} Domain ${domainName}`
+          );
+          await api.delete(`/zones/${zoneName}/dns_records/${record.id}`);
+        }
+      }
+      return validRecords;
+    });
+
+  const selectedRecord = records.find(
+    (record) => record.content === selectedIp
+  );
+  if (isConnected && isGood) {
+    if (!selectedRecord) {
       console.log(
-        `Creating new record for IP: ${selectedIp} in Cloudflare DNS Server`
+        `Creating new record for IP ${selectedIp} in Cloudflare DNS Server`
       );
       // Create new DNS record
-      await api.post(`/zones/${zone_name}/dns_records`, {
+      await api.post(`/zones/${zoneName}/dns_records`, {
         type: "A",
-        name: domain_name,
+        name: domainName,
         content: selectedIp,
         ttl: 3600,
       });
     } else {
       console.log(
-        `Record for IP: ${selectedIp} already exists in Cloudflare DNS Server`
+        `Record for IP ${selectedIp} already exists in Cloudflare DNS Server`
       );
     }
-  } else if (!connected && records.includes(selectedIp)) {
-    console.log(`Unsuccessful response from IP: ${selectedIp}`);
-    console.log(
-      `IP: ${selectedIp} will be deleted from dns server next iteration`
-    );
+  } else if ((!isConnected || !isGood) && selectedRecord) {
+    console.log(`Unsuccessful response from IP ${selectedIp}`);
+    await api.delete(`/zones/${zoneName}/dns_records/${selectedRecord.id}`);
+    console.log(`IP ${selectedIp} deleted from DNS server`);
   }
 }
 

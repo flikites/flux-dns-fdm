@@ -10,75 +10,87 @@ const APPS_NAME = process.env.APP_NAME?.split(",")
 const APPS_PORT = process.env.APP_PORT?.split(",")
   .filter((d) => d.trim())
   .map((d) => d.trim());
-const DNS_ZONES_NAME = process.env.DNS_ZONE_NAME?.split(",")
-  .filter((d) => d.trim())
-  .map((d) => d.trim());
 const DOMAINS_NAME = process.env.DOMAIN_NAME?.split(",")
   .filter((d) => d.trim())
   .map((d) => d.trim());
 
 async function main() {
   let workers = [];
-  const workingIpsByZone = {};
 
-  await Promise.all(
-    DNS_ZONES_NAME.map((zone) => {
-      return getHealthyIp(zone, APPS_PORT).then((ips) => {
-        workingIpsByZone[zone] = ips;
-      });
-    })
-  );
-
+  const zones = await getOrCreateZones(DOMAINS_NAME);
   for (let i = 0; i < APPS_NAME.length; i++) {
     workers.push(
       checkIP({
         app_name: APPS_NAME[i],
         app_port: APPS_PORT[i],
-        zone_name: DNS_ZONES_NAME[i],
+        zone_name: zones.find((v) => DOMAINS_NAME[i].endsWith(v.name))?.id,
         domain_name: DOMAINS_NAME[i],
-        working_addresses: workingIpsByZone[DNS_ZONES_NAME[i]],
       })
     );
   }
   await Promise.all(workers);
 }
 
-async function getHealthyIp(zone, ports) {
-  console.log("==============zone============");
-  console.log(zone);
-  console.log("=============zone=============");
+async function getOrCreateZones(names = []) {
+  const rootNames = names.map((n) => {
+    const arr = n.split(".");
+    return arr[arr.length - 2] + "." + arr[arr.length - 1];
+  });
 
-  const workingIPs = [];
-  const { data } = await api.get(`/zones/${zone}/dns_records?type=A`);
-  // const records = data?.result?.filter((item) => item.type === "A") ?? [];
-  const records = data?.result ?? [];
-  for (const record of records) {
-    let isHealthy = false;
-    for (const port of ports) {
-      try {
-        console.log(`checking http://${record.content}:${port}`);
-        const connected = await checkConnection(record.content, port);
-        if (connected) {
-          isHealthy = true;
-          workingIPs.push(record.content);
-          console.info(`looks healthy: http://${record.content}:${port}`);
-          break;
-        }
-      } catch (error) {
-        console.log(`H->Error connecting to ${record.content}:${port}`);
-      }
+  try {
+    const { data: zoneData } = await api.get(
+      `/zones?account.id=${process.env.DNS_SERVER_ACCOUNT_ID}`
+    );
+    const existingZones = zoneData.result.filter((z) =>
+      rootNames.includes(z.name)
+    );
+    const availableZoneNames = zoneData.result.map((item) => item.name);
+    const unavailableZoneNames = rootNames.filter(
+      (name) => !availableZoneNames.includes(name)
+    );
+
+    if (unavailableZoneNames.length) {
+      const newZones = await createZones(unavailableZoneNames);
+      existingZones.push(...newZones);
     }
 
-    if (!isHealthy) {
-      console.log(
-        `Health check failed IP:${record.content} deleting from dns server`
-      );
-      await api
-        .delete(`/zones/${zone}/dns_records/${record.id}`)
-        .catch(console.log);
-    }
+    return existingZones.map((z) => ({ name: z.name, id: z.id }));
+  } catch (error) {
+    console.log(error?.message ?? error);
   }
-  return workingIPs;
+  return [];
+}
+
+async function createZones(names) {
+  const promises = names.map((name) =>
+    createZone(name).catch((error) => {
+      console.log(`Zone Error while making concurrent requests: ${error}`);
+    })
+  );
+  const newZones = await Promise.all(promises);
+  console.log(newZones);
+  return newZones.filter((z) => z);
+}
+
+async function createZone(name) {
+  console.log("creating new zone with name ", name);
+  try {
+    const result = await api.post(`/zones`, {
+      data: {
+        name: name,
+        type: "full",
+        account: {
+          id: process.env.DNS_SERVER_ACCOUNT_ID,
+        },
+      },
+    });
+    console.log("created ", result);
+    return { id: result.result.id, name: result.result.name };
+  } catch (error) {
+    console.log("failed");
+    console.log(error?.message ?? error);
+    return null;
+  }
 }
 
 if (require.main === module) {
