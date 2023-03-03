@@ -76,12 +76,10 @@ async function createZone(name) {
   console.log("creating new zone with name ", name);
   try {
     const result = await api.post(`/zones`, {
-      data: {
-        name: name,
-        type: "full",
-        account: {
-          id: process.env.DNS_SERVER_ACCOUNT_ID,
-        },
+      name: name,
+      type: "full",
+      account: {
+        id: process.env.DNS_SERVER_ACCOUNT_ID,
       },
     });
     console.log("created ", result);
