@@ -1,6 +1,8 @@
-experimental/not tested fully
+Flux DNS FDM - Cloudflare v2.1 is out now and gracefully handles record removals for domains associated with your Flux app(s) only. 
 
-WARNING: Currently this branch will remove any A records not associated with Flux apps. This will be fixed in the coming weeks.
+You can download the newest version from [Releases](https://github.com/FliKites/flux-dns-fdm/releases)
+
+W̶A̶R̶N̶I̶N̶G̶:̶ ̶C̶u̶r̶r̶e̶n̶t̶l̶y̶ ̶t̶h̶i̶s̶ ̶b̶r̶a̶n̶c̶h̶ ̶w̶i̶l̶l̶ ̶r̶e̶m̶o̶v̶e̶ ̶a̶n̶y̶ ̶A̶ ̶r̶e̶c̶o̶r̶d̶s̶ ̶n̶o̶t̶ ̶a̶s̶s̶o̶c̶i̶a̶t̶e̶d̶ ̶w̶i̶t̶h̶ ̶F̶l̶u̶x̶ ̶a̶p̶p̶s̶.̶ ̶T̶h̶i̶s̶ ̶w̶i̶l̶l̶ ̶b̶e̶ ̶f̶i̶x̶e̶d̶ ̶i̶n̶ ̶t̶h̶e̶ ̶c̶o̶m̶i̶n̶g̶ ̶w̶e̶e̶k̶s̶.̶
 
 # flux-dns-fdm-cloudflare
 
