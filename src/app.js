@@ -5,9 +5,9 @@ const axios = require("axios");
 
 const {
   findMostCommonResponse,
-  getFluxNodes,
-  api,
+  getWorkingNodes,
   checkConnection,
+  api,
 } = require("./utils");
 
 async function checkIP(workerData) {
@@ -15,12 +15,12 @@ async function checkIP(workerData) {
     workerData;
   try {
     // Array of URLs
-    const fluxNodes = await getFluxNodes();
-    // Select 5 random URLs
-    const randomFluxNodes = fluxNodes
-      .sort(() => 0.5 - Math.random())
-      .slice(0, 5);
-
+    // const fluxNodes = await getFluxNodes();
+    // // Select 5 random URLs
+    // const randomFluxNodes = fluxNodes
+    //   .sort(() => 0.5 - Math.random())
+    //   .slice(0, 5);
+    const randomFluxNodes = await getWorkingNodes();
     const randomUrls = randomFluxNodes.map(
       (ip) => `http://${ip}:16127/apps/location/${app_name}`
     );

@@ -59,9 +59,27 @@ function checkConnection(host, port, timeout = 3000) {
   });
 }
 
+async function getWorkingNodes() {
+  const fluxNodes = await getFluxNodes();
+  const activeIps = [];
+  for (const ip of fluxNodes) {
+    try {
+      await checkConnection(ip, 16127);
+      activeIps.push(ip);
+      if (activeIps.length >= 5) {
+        return activeIps;
+      }
+    } catch (error) {
+      console.log(`avoiding bad flux node ${ip} err: ${error?.message}`);
+    }
+  }
+  return activeIps;
+}
+
 module.exports = {
   findMostCommonResponse,
   getFluxNodes,
-  api,
   checkConnection,
+  getWorkingNodes,
+  api,
 };
