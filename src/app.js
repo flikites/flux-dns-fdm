@@ -3,9 +3,9 @@ dotenv.config();
 const axios = require("axios");
 
 const {
-  findMostCommonResponse,
-  getFluxNodes,
   api,
+  findMostCommonResponse,
+  getWorkingNodes,
   checkConnection,
 } = require("./utils");
 
@@ -13,11 +13,12 @@ async function checkIP(workerData) {
   const { app_name, app_port, zone_name, domain_name } = workerData;
   try {
     // Array of URLs
-    const fluxNodes = await getFluxNodes();
-    // Select 5 random URLs
-    const randomFluxNodes = fluxNodes
-      .sort(() => 0.5 - Math.random())
-      .slice(0, 5);
+    // const fluxNodes = await getFluxNodes();
+    // // Select 5 random URLs
+    // const randomFluxNodes = fluxNodes
+    //   .sort(() => 0.5 - Math.random())
+    //   .slice(0, 5);
+    const randomFluxNodes = await getWorkingNodes();
 
     const randomUrls = randomFluxNodes.map(
       (ip) => `http://${ip}:16127/apps/location/${app_name}`
