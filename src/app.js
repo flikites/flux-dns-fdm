@@ -74,8 +74,6 @@ async function createOrDeleteRecord(selectedIp, appPort, domainName, zoneName) {
   );
   let isGood = true;
   if (
-    r2?.is_tor ||
-    r2?.is_proxy ||
     r2?.is_vpn ||
     r2?.is_abuser
   ) {
