@@ -74,8 +74,8 @@ async function createOrDeleteRecord(selectedIp, appPort, domainName, zoneName) {
   );
   let isGood = true;
   if (
-    r2?.is_vpn ||
-    r2?.is_abuser
+    //r2?.is_vpn ||
+    //r2?.is_abuser
   ) {
     isGood = false;
     console.log("bad user ip detected: ", selectedIp);
