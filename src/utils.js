@@ -24,6 +24,7 @@ function findMostCommonResponse(arr) {
   let subArrCount = {};
   let maxCount = 0;
   let mostCommon;
+  console.log(arr);
 
   for (let i = 0; i < arr.length; i++) {
     let subArr = JSON.stringify(arr[i]);
@@ -35,6 +36,23 @@ function findMostCommonResponse(arr) {
     if (subArrCount[subArr] > maxCount) {
       maxCount = subArrCount[subArr];
       mostCommon = JSON.parse(subArr);
+    }
+  }
+  return mostCommon;
+}
+function findMostCommonValues(arr) {
+  const valueCount = {};
+  let maxCount = 0;
+  let mostCommon = [];
+
+  for (const value of arr) {
+    valueCount[value] = (valueCount[value] || 0) + 1;
+
+    if (valueCount[value] > maxCount) {
+      maxCount = valueCount[value];
+      mostCommon = [value];
+    } else if (valueCount[value] === maxCount) {
+      mostCommon.push(value);
     }
   }
   return mostCommon;
@@ -79,6 +97,7 @@ async function getWorkingNodes() {
 
 module.exports = {
   findMostCommonResponse,
+  findMostCommonValues,
   getFluxNodes,
   checkConnection,
   getWorkingNodes,
