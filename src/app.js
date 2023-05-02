@@ -47,13 +47,29 @@ async function checkIP(workerData) {
     console.log("app_name: ", app_name);
     console.log("app_port: ", app_port);
     console.log("flux Consensus Ip list for app: ", commonIps);
-
-    const records = await getValidRecords(zone_name, app_port, app_name);
-    console.log("records ", records);
-    for (const [index, ip] of commonIps.entries()) {
-      const domainName =
-        index < domain_names.length ? domain_names[index] : domain_names[0];
-      await createOrDeleteRecord(
+    const workingIPS = [];
+    for (const ip of commonIps) {
+      try {
+        await checkConnection(ip, app_port);
+        workingIPS.push(ip);
+      } catch (error) {
+        console.log(
+          "flux returned a bad ip we are excluding from commonIps",
+          ip
+        );
+      }
+    }
+    console.log("getting and updating dns record");
+    const records = await getValidRecords(
+      zone_name,
+      app_port,
+      app_name,
+      workingIPS
+    );
+    console.log("----creating new record if required----");
+    for (const [index, domainName] of domain_names.entries()) {
+      const ip = index < commonIps.length ? commonIps[index] : commonIps[0];
+      await createRecord(
         ip,
         app_port,
         domainName,
@@ -67,7 +83,32 @@ async function checkIP(workerData) {
   }
 }
 
-async function getValidRecords(zoneName, appPort, appName) {
+// async function getValidRecords(zoneName, appPort, appName, commonIps) {
+//   console.log("zoneName ", zoneName);
+//   console.log("appPort ", appPort);
+//   console.log("appName ", appName);
+//   const { data } = await api.get(
+//     `/zones/${zoneName}/dns_records?comment=${appName}&type=A`
+//   );
+//   const records = [];
+//   for (const record of data.result) {
+//     try {
+//       await checkConnection(record.content, appPort);
+//       records.push(record);
+//     } catch (error) {
+//       console.log(
+//         `deleting record for ip ${record.content} and domain ${record.name}`
+//       );
+//       await api
+//         .delete(`/zones/${zoneName}/dns_records/${record.id}`)
+//         .catch(console.log);
+//     }
+//   }
+//   console.log("---fetching valid dns record finished---");
+//   return records;
+// }
+
+async function getValidRecords(zoneName, appPort, appName, commonIps) {
   console.log("zoneName ", zoneName);
   console.log("appPort ", appPort);
   console.log("appName ", appName);
@@ -75,23 +116,51 @@ async function getValidRecords(zoneName, appPort, appName) {
     `/zones/${zoneName}/dns_records?comment=${appName}&type=A`
   );
   const records = [];
-
-  for (const record of data?.result ?? []) {
+  for (const record of data.result) {
     try {
-      const isConnected = await checkConnection(record.content, appPort);
-      if (isConnected) {
-        records.push(record);
-      } else {
-        await api.delete(`/zones/${zoneName}/dns_records/${record.id}`);
-      }
+      await checkConnection(record.content, appPort);
+      records.push(record);
     } catch (error) {
-      console.log(error);
+      console.log(
+        `detected a bad record with name: ${record.name} and ip ${record.content}`
+      );
+
+      // Find a healthy common IP that doesn't exist in data.result
+      let newIp = null;
+      for (const ip of commonIps) {
+        if (!data.result.find((r) => r.content === ip)) {
+          newIp = ip;
+          break;
+        }
+      }
+
+      if (!newIp) {
+        // Select a random IP from commonIps
+        const randomIndex = Math.floor(Math.random() * commonIps.length);
+        newIp = commonIps[randomIndex];
+      }
+      console.log(
+        `replacing bad ip: ${record.content} with new ip:${newIp} for domain:${record.name}`
+      );
+      // Update the record with the new healthy IP or random IP
+      await api
+        .put(`/zones/${zoneName}/dns_records/${record.id}`, {
+          type: "A",
+          name: record.name,
+          content: newIp,
+          ttl: record.ttl,
+          proxied: record.proxied,
+          comment: appName,
+        })
+        .catch(console.log);
+      record.content = newIp;
+      records.push(record);
     }
   }
   return records;
 }
 
-async function createOrDeleteRecord(
+async function createRecord(
   selectedIp,
   appPort,
   domainName,
@@ -100,56 +169,28 @@ async function createOrDeleteRecord(
   records
 ) {
   try {
-    const isConnected = await checkConnection(selectedIp, appPort);
-    const { data: r2 } = await axios.get(
-      `https://api.incolumitas.com/?q=${selectedIp}`
-    );
-    const isGood = !(
-      r2?.is_datacenter ||
-      r2?.is_tor ||
-      r2?.is_proxy ||
-      r2?.is_vpn ||
-      r2?.is_abuser
-    );
-
     const selectedRecord = records.find(
-      (record) => record.content === selectedIp
-    );
-
-    if (isConnected && isGood) {
-      if (!selectedRecord) {
-        await api.post(`/zones/${zoneName}/dns_records`, {
-          type: "A",
-          name: domainName,
-          content: selectedIp,
-          ttl: 60,
-          comment: appName,
-        });
-        console.log("created domain ", domainName);
-        console.log("created ip ", selectedIp);
-      } else {
-        console.log("record exist ", selectedRecord.content);
-      }
-    } else if (selectedRecord && (!isGood || !isConnected)) {
-      console.log("deleting record");
-      await api.delete(`/zones/${zoneName}/dns_records/${selectedRecord.id}`);
-    }
-  } catch (error) {
-    console.log("connection check failed for ", selectedIp + ":" + appPort);
-    const selectedRecord = records.find(
-      (record) => record.content === selectedIp
+      (record) => record.name === domainName || record.content === selectedIp
     );
     if (!selectedRecord) {
+      await api.post(`/zones/${zoneName}/dns_records`, {
+        type: "A",
+        name: domainName,
+        content: selectedIp,
+        ttl: 60,
+        comment: appName,
+      });
       console.log(
-        "we have not found any existing record so avoiding delete request ",
-        selectedIp + ":" + appPort
+        `created record for ip ${selectedIp} and domain ${domainName}`
       );
     } else {
-      console.log("deleting record");
-      await api
-        .delete(`/zones/${zoneName}/dns_records/${selectedRecord.id}`)
-        .catch(console.log);
+      console.log(
+        `record already exist with domain:${selectedRecord.name} ip:${selectedRecord.content} `
+      );
     }
+  } catch (error) {
+    console.log(error?.message);
+    // console.log("connection check failed for ", selectedIp + ":" + appPort);
   }
 }
 
