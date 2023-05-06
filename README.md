@@ -61,6 +61,6 @@ ZONE_NAME=lootlink.xyz
 
 ## Cron Schedule
 
-The script makes checks and updates every 10 minutes using a cron job.
+The script makes checks and updates every 1 minute using a cron job.
 
 You can update the cron expression on line 86 of `/src/main.js`
