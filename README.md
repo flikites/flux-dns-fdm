@@ -46,7 +46,7 @@ build image
 `docker build -t yourtag .`
 
 run container
-`docker run host --env-file=.env wirewrex/flux-dns-fdm:single-ip`
+`docker run --name flux-dns-fdm  --env-file=.env wirewrex/flux-dns-fdm:single-ip`
 
 ## Envirornment Variables
 ```
