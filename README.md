@@ -9,13 +9,13 @@ You must pull the `cloudflare-single-ip` branch.
 
 `git clone --branch cloudflare-single-ip https://github.com/FliKites/flux-dns-fdm.git`
 
-It will automatically add a sinlge IP from your [Flux](https://runonflux.io) deployment to each of the specified domain names in the ENV varaible `DOMAIN_NAME`.
+It will automatically add a single IP from your [Flux](https://runonflux.io/) deployment to each of the specified domain names in the ENV variable DOMAIN_NAME.
 
-Furtheremore it will run a health check on a cron job that runs every 1 miniute to check the health of your deployments IP. You can configure it to run every 1 second (must rebuild)
+Furthermore, it will run a health check on a cron job that runs every 1 minute to check the health of your deployments IP. You can configure it to run every 1 second (must rebuild)
 
 If an IP that is allocated in Cloudflare DNS becomes unhealthy, the script will attempt to replace it with a unique IP not being used by any other domain name.
 
-If no unique IP exist that can be allocated, it will add a random healthy IP from you deployment to the Cloudfare DNS for the zone you specify in `ZONE_NAME`. 
+If no unique IP exists that can be allocated, it will add a random healthy IP from your deployment to the Cloudflare DNS for the zone you specify in ZONE_NAME. 
 
 ## Pre-Requisites
 
