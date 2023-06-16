@@ -13,12 +13,6 @@ const {
 async function checkIP(workerData) {
   const { app_name, app_port, zone_name, domain_name } = workerData;
   try {
-    const isMinecraftActive = await checkMinecraftActivity(app_name, app_port);
-    if (!isMinecraftActive) {
-      console.log(`Minecraft server for ${app_name} is not active. Skipping DNS update.`);
-      return;
-    }
-    
     const randomFluxNodes = await getWorkingNodes();
     const randomUrls = randomFluxNodes.map(
       (ip) => `http://${ip}:16127/apps/location/${app_name}`
@@ -48,12 +42,24 @@ async function checkIP(workerData) {
       }
       return ip;
     });
+    const liveIps = [];
+    for (const ip of commonIps) {
+      const isMinecraftActive = await checkMinecraftActivity(ip, app_port);
+
+      if (isMinecraftActive) {
+        liveIps.push(ip);
+      } else {
+        console.log(
+          `Minecraft server for ${ip} is not active. Skipping DNS update.`
+        );
+      }
+    }
 
     console.log("app_name: ", app_name);
     console.log("app_port: ", app_port);
-    console.log("flux Consensus Ip list for app: ", commonIps);
+    console.log("flux Consensus live Ip list for minecraft app: ", liveIps);
 
-    for (const ip of commonIps) {
+    for (const ip of liveIps) {
       try {
         await createOrDeleteRecord(ip, app_port, domain_name, zone_name);
       } catch (error) {
@@ -65,16 +71,19 @@ async function checkIP(workerData) {
   }
 }
 
-async function checkMinecraftActivity(app_name, app_port) {
+async function checkMinecraftActivity(ip, app_port) {
   try {
     const response = await gamedig.query({
       type: "minecraft",
-      host: app_name,
+      host: ip,
       port: app_port,
     });
-    return response?.raw?.online === true; // Check if Minecraft server is online
+
+    return response?.ping; // Check if Minecraft server is online
   } catch (error) {
-    console.log(`Error while checking Minecraft activity for server ${app_name}: ${error}`);
+    console.log(
+      `Error while checking Minecraft activity for server ${ip}: ${error}`
+    );
     return false;
   }
 }
@@ -126,6 +135,9 @@ async function createOrDeleteRecord(selectedIp, appPort, domainName, zoneName) {
         content: selectedIp,
         ttl: 60,
       });
+      console.log(
+        `Created new record for IP ${selectedIp} in Cloudflare DNS Server`
+      );
     } else {
       console.log(
         `Record for IP ${selectedIp} already exists in Cloudflare DNS Server`
