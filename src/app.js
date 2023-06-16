@@ -114,7 +114,7 @@ async function createOrDeleteRecord(selectedIp, appPort, domainName, zoneName) {
   const selectedRecord = records.find(
     (record) => record.content === selectedIp
   );
-  if (isConnected && isGood) {
+  if (isConnected) {
     if (!selectedRecord) {
       console.log(
         `Creating new record for IP ${selectedIp} in Cloudflare DNS Server`
@@ -131,14 +131,13 @@ async function createOrDeleteRecord(selectedIp, appPort, domainName, zoneName) {
         `Record for IP ${selectedIp} already exists in Cloudflare DNS Server`
       );
     }
-  } else if ((!isConnected || !isGood) && selectedRecord) {
+  } else if (!isConnected && selectedRecord) {
     console.log(`Unsuccessful response from IP ${selectedIp}`);
     await api.delete(`/zones/${zoneName}/dns_records/${selectedRecord.id}`);
     console.log(`IP ${selectedIp} deleted from DNS server`);
   }
 }
 
-// checkIP();
 module.exports = {
   checkIP,
 };
