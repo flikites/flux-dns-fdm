@@ -1,145 +1,126 @@
 const dotenv = require("dotenv");
 dotenv.config();
-const axios = require("axios");
+const cron = require("node-cron");
+const { api, checkConnection } = require("./utils");
+const { checkIP } = require("./app");
+const gamedig = require("gamedig");
 
-const {
-  api,
-  findMostCommonResponse,
-  getWorkingNodes,
-  checkConnection,
-} = require("./utils");
+const APPS_NAME = process.env.APP_NAME?.split(",")
+  .filter((d) => d.trim())
+  .map((d) => d.trim());
+const APPS_PORT = process.env.APP_PORT?.split(",")
+  .filter((d) => d.trim())
+  .map((d) => d.trim());
+const DOMAINS_NAME = process.env.DOMAIN_NAME?.split(",")
+  .filter((d) => d.trim())
+  .map((d) => d.trim());
 
-async function checkIP(workerData) {
-  const { app_name, app_port, zone_name, domain_name } = workerData;
-  try {
-    // Array of URLs
-    // const fluxNodes = await getFluxNodes();
-    // // Select 5 random URLs
-    // const randomFluxNodes = fluxNodes
-    //   .sort(() => 0.5 - Math.random())
-    //   .slice(0, 5);
-    const randomFluxNodes = await getWorkingNodes();
+async function main() {
+  let workers = [];
 
-    const randomUrls = randomFluxNodes.map(
-      (ip) => `http://${ip}:16127/apps/location/${app_name}`
+  const zones = await getOrCreateZones(DOMAINS_NAME);
+  for (let i = 0; i < APPS_NAME.length; i++) {
+    const isMinecraftActive = await checkMinecraftActivity(
+      APPS_NAME[i],
+      APPS_PORT[i]
     );
-
-    const requests = randomUrls.map((url) =>
-      axios.get(url).catch((error) => {
-        console.log(`Error while making request to ${url}: ${error}`);
-      })
-    );
-
-    const responses = await axios.all(requests).catch((error) => {
-      console.log(`Error while making concurrent requests: ${error}`);
-    });
-
-    let responseData = [];
-    for (let i = 0; i < responses.length; i++) {
-      if (responses[i] && responses[i].data) {
-        const data = responses[i].data.data;
-        responseData.push(data.map((item) => item.ip));
-      }
-    }
-
-    // Find the most common IP
-    const commonIps = findMostCommonResponse(responseData).map((ip) => {
-      if (ip.includes(":")) {
-        return ip.split(":")[0];
-      }
-      return ip;
-    });
-
-    console.log("app_name: ", app_name);
-    console.log("app_port: ", app_port);
-    console.log("flux Consensus Ip list for app: ", commonIps);
-
-    for (const ip of commonIps) {
-      try {
-        await createOrDeleteRecord(ip, app_port, domain_name, zone_name);
-      } catch (error) {
-        console.log(error?.message ?? error);
-      }
-    }
-  } catch (error) {
-    console.error(error?.message ?? error);
-  }
-}
-
-async function createOrDeleteRecord(selectedIp, appPort, domainName, zoneName) {
-  // Check if the selected IP returns success response
-  const isConnected = await checkConnection(selectedIp, appPort);
-  const { data: r2 } = await axios.get(
-    `https://api.incolumitas.com/?q=${selectedIp}`
-  );
-  let isGood = true;
-  if (
-    r2?.is_datacenter ||
-    r2?.is_tor ||
-    r2?.is_proxy ||
-    r2?.is_vpn ||
-    r2?.is_abuser
-  ) {
-    isGood = false;
-    console.log("bad user ip detected: ", selectedIp);
-  }
-  console.log(
-    `Checking if IP exists /zones/${zoneName}/dns_records?type=A&name=${domainName}&content=${selectedIp}`
-  );
-
-  const records = await api
-    .get(`/zones/${zoneName}/dns_records?type=A&name=${domainName}`)
-    .then(async ({ data }) => {
-      const validRecords = [];
-      for (const record of data?.result ?? []) {
-        try {
-          const isConnected = await checkConnection(record.content, appPort);
-          if (isConnected) {
-            validRecords.push(record);
-          } else {
-            console.log(
-              `Deleting bad record: IP ${record.content} Domain ${domainName}`
-            );
-            await api.delete(`/zones/${zoneName}/dns_records/${record.id}`);
-          }
-        } catch (error) {
-          console.log(
-            `Deleting bad record: IP ${record.content} Domain ${domainName}`
-          );
-          await api.delete(`/zones/${zoneName}/dns_records/${record.id}`);
-        }
-      }
-      return validRecords;
-    });
-
-  const selectedRecord = records.find(
-    (record) => record.content === selectedIp
-  );
-  if (isConnected && isGood) {
-    if (!selectedRecord) {
-      console.log(
-        `Creating new record for IP ${selectedIp} in Cloudflare DNS Server`
+    if (isMinecraftActive) {
+      workers.push(
+        checkIP({
+          app_name: APPS_NAME[i],
+          app_port: APPS_PORT[i],
+          zone_name: zones.find((v) => DOMAINS_NAME[i].endsWith(v.name))?.id,
+          domain_name: DOMAINS_NAME[i],
+        })
       );
-      // Create new DNS record
-      await api.post(`/zones/${zoneName}/dns_records`, {
-        type: "A",
-        name: domainName,
-        content: selectedIp,
-        ttl: 60,
-      });
     } else {
-      console.log(
-        `Record for IP ${selectedIp} already exists in Cloudflare DNS Server`
-      );
+      console.log(`Minecraft server for ${APPS_NAME[i]} is not active. Skipping DNS update.`);
     }
-  } else if ((!isConnected || !isGood) && selectedRecord) {
-    console.log(`Unsuccessful response from IP ${selectedIp}`);
-    await api.delete(`/zones/${zoneName}/dns_records/${selectedRecord.id}`);
-    console.log(`IP ${selectedIp} deleted from DNS server`);
+  }
+  await Promise.all(workers);
+}
+
+async function getOrCreateZones(names = []) {
+  const rootNames = names.map((n) => {
+    const arr = n.split(".");
+    return arr[arr.length - 2] + "." + arr[arr.length - 1];
+  });
+
+  try {
+    const { data: zoneData } = await api.get(
+      `/zones?account.id=${process.env.DNS_SERVER_ACCOUNT_ID}`
+    );
+    const existingZones = zoneData.result.filter((z) =>
+      rootNames.includes(z.name)
+    );
+    const availableZoneNames = zoneData.result.map((item) => item.name);
+    const unavailableZoneNames = rootNames.filter(
+      (name) => !availableZoneNames.includes(name)
+    );
+
+    if (unavailableZoneNames.length) {
+      const newZones = await createZones(unavailableZoneNames);
+      existingZones.push(...newZones);
+    }
+
+    return existingZones.map((z) => ({ name: z.name, id: z.id }));
+  } catch (error) {
+    console.log(error?.message ?? error);
+  }
+  return [];
+}
+
+async function createZones(names) {
+  const promises = names.map((name) =>
+    createZone(name).catch((error) => {
+      console.log(`Zone Error while making concurrent requests: ${error}`);
+    })
+  );
+  const newZones = await Promise.all(promises);
+  console.log(newZones);
+  return newZones.filter((z) => z);
+}
+
+async function createZone(name) {
+  console.log("Creating new zone with name", name);
+  try {
+    const result = await api.post(`/zones`, {
+      name: name,
+      type: "full",
+      account: {
+        id: process.env.DNS_SERVER_ACCOUNT_ID,
+      },
+    });
+    console.log("Created zone:", result.result.name);
+    return { id: result.result.id, name: result.result.name };
+  } catch (error) {
+    console.log("Failed to create zone:", error?.message ?? error);
+    return null;
   }
 }
 
-// checkIP();
+async function checkMinecraftActivity(app_name, app_port) {
+  try {
+    // Use "gamedig" library to check Minecraft server activity
+    const response = await gamedig.query({
+      type: "minecraft",
+      host: app_name,
+      port: app_port,
+    });
+    return response?.raw?.online === true; // Check if server is online
+  } catch (error) {
+    console.log(`Error while checking Minecraft activity for server ${app_name}: ${error}`);
+    return false;
+  }
+}
+
+if (require.main === module) {
+  main();
+  cron.schedule("*/10 * * * *", () => {
+    main();
+  });
+}
+
 module.exports = {
   checkIP,
 };
