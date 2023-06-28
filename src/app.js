@@ -1,7 +1,9 @@
+const fs = require("fs").promises;
+const path = require("path");
+
 const dotenv = require("dotenv");
 dotenv.config();
 const axios = require("axios");
-const gamedig = require("gamedig");
 
 const {
   api,
@@ -10,15 +12,89 @@ const {
   checkConnection,
 } = require("./utils");
 
+const clusterFilePath = path.join(process.env.FILE_PATH, "cluster_ip.txt");
+
 async function checkIP(workerData) {
   const { app_name, app_port, zone_name, domain_name } = workerData;
+  try {
+    if (await fs.access(clusterFilePath)) {
+      const ip = (await fs.readFile(clusterFilePath, "utf8"))
+        .split("\n")[0]
+        .split(":")[0];
+      const isConnected = await checkConnection(ip, app_port);
+      if (isConnected) {
+        console.log("master node is active ", ip);
+      } else {
+        console.log("creating new node, old node is not working");
+        await createNew(app_name, app_port, zone_name, domain_name);
+      }
+    } else {
+      await createNew(app_name, app_port, zone_name, domain_name);
+    }
+  } catch (error) {
+    console.error(`Error in checkIP function: ${error}`);
+  }
+}
+
+async function createNew(app_name, app_port, zone_name, domain_name) {
   try {
     const randomFluxNodes = await getWorkingNodes();
     const randomUrls = randomFluxNodes.map(
       (ip) => `http://${ip}:16127/apps/location/${app_name}`
     );
 
-    const requests = randomUrls.map((url) =>
+    const responses = await getResponses(randomUrls);
+
+    let responseData = [];
+    for (let i = 0; i < responses.length; i++) {
+      if (responses[i] && responses[i].data) {
+        const data = responses[i].data.data;
+        responseData.push(
+          data.map((item) => ({ ip: item.ip, hash: item.hash }))
+        );
+      }
+    }
+
+    const commonIps = findMostCommonResponse(responseData).map((item) => {
+      if (item.ip.includes(":")) {
+        return { ip: item.ip.split(":")[0], hash: item.hash };
+      }
+      return item;
+    });
+
+    console.log("app_name: ", app_name);
+    console.log("app_port: ", app_port);
+    console.log("flux Consensus live Ip list for minecraft app: ", commonIps);
+    // write liveIps to the file
+    let fileContent = "";
+    commonIps.forEach((ip, index) => {
+      fileContent += `${ip.ip}:${index === 0 ? "MASTER" : "SECONDARY"}:${
+        ip.hash
+      }\n`;
+    });
+
+    await fs.writeFile(clusterFilePath, fileContent);
+
+    console.log("fileContent ", fileContent);
+
+    try {
+      await createOrDeleteRecord(
+        commonIps[0].ip,
+        app_port,
+        domain_name,
+        zone_name
+      );
+    } catch (error) {
+      console.log(`Error while creating or deleting record: ${error}`);
+    }
+  } catch (error) {
+    console.error(`Error in createNew function: ${error}`);
+  }
+}
+
+async function getResponses(urls) {
+  try {
+    const requests = urls.map((url) =>
       axios.get(url).catch((error) => {
         console.log(`Error while making request to ${url}: ${error}`);
       })
@@ -28,63 +104,9 @@ async function checkIP(workerData) {
       console.log(`Error while making concurrent requests: ${error}`);
     });
 
-    let responseData = [];
-    for (let i = 0; i < responses.length; i++) {
-      if (responses[i] && responses[i].data) {
-        const data = responses[i].data.data;
-        responseData.push(data.map((item) => item.ip));
-      }
-    }
-
-    const commonIps = findMostCommonResponse(responseData).map((ip) => {
-      if (ip.includes(":")) {
-        return ip.split(":")[0];
-      }
-      return ip;
-    });
-    const liveIps = [];
-    for (const ip of commonIps) {
-      const isMinecraftActive = await checkMinecraftActivity(ip, app_port);
-
-      if (isMinecraftActive) {
-        liveIps.push(ip);
-      } else {
-        console.log(
-          `Minecraft server for ${ip} is not active. Skipping DNS update.`
-        );
-      }
-    }
-
-    console.log("app_name: ", app_name);
-    console.log("app_port: ", app_port);
-    console.log("flux Consensus live Ip list for minecraft app: ", liveIps);
-
-    for (const ip of liveIps) {
-      try {
-        await createOrDeleteRecord(ip, app_port, domain_name, zone_name);
-      } catch (error) {
-        console.log(error?.message ?? error);
-      }
-    }
+    return responses;
   } catch (error) {
-    console.error(error?.message ?? error);
-  }
-}
-
-async function checkMinecraftActivity(ip, app_port) {
-  try {
-    const response = await gamedig.query({
-      type: "minecraft",
-      host: ip,
-      port: app_port,
-    });
-
-    return response?.ping; // Check if Minecraft server is online
-  } catch (error) {
-    console.log(
-      `Error while checking Minecraft activity for server ${ip}: ${error}`
-    );
-    return false;
+    console.error(`Error in getResponses function: ${error}`);
   }
 }
 
