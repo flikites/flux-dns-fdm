@@ -25,6 +25,7 @@ async function checkIP(workerData) {
       if (isConnected) {
         console.log("master node is active ", ip);
       } else {
+        await createOrDeleteRecord(ip, app_port, domain_name, zone_name);
         console.log("creating new node, old node is not working");
         await createNew(app_name, app_port, zone_name, domain_name);
       }
