@@ -1,6 +1,6 @@
 const fs = require("fs").promises;
 const path = require("path");
-
+const gamedig = require("gamedig");
 const dotenv = require("dotenv");
 dotenv.config();
 const axios = require("axios");
