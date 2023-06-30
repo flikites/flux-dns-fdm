@@ -1,6 +1,8 @@
 DNS_SERVER_ADDRESS=https://api.cloudflare.com/client/v4
-DNS_SERVER_API_KEY=<your-api-key>
-APP_NAME=<flux-app-name>
-APP_PORT=<flux-app-port>
-DNS_ZONE_NAME=<your-cloudflare-dns-zone>
-DOMAIN_NAME=<domain-name-that-matches-zone>
+DNS_SERVER_API_KEY=api_key
+DNS_SERVER_ACCOUNT_ID=accountd_id
+APP_NAME=dane
+APP_PORT=33333
+DOMAIN_NAME=test123.lootlink.xyz
+ZONE_NAME=lootlink.xyz
+FILE_PATH=/root/cluster
