@@ -67,7 +67,7 @@ async function createNew(app_name, app_port, zone_name, domain_name) {
     for (const item of commonIps) {
       const r = await checkMinecraftActivity(item.ip, app_port);
       const c = await checkConnection(item.ip, app_port);
-      if (r) {
+      if (r && c) {
         liveIps.push(item);
       } else {
         if (!r)
