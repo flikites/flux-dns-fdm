@@ -66,10 +66,13 @@ async function createNew(app_name, app_port, zone_name, domain_name) {
     const liveIps = [];
     for (const item of commonIps) {
       const r = await checkMinecraftActivity(item.ip, app_port);
+      const c = await checkConnection(item.ip, app_port);
       if (r) {
         liveIps.push(item);
       } else {
-        console.log(`minecraft activity check failed for ip: ${item.ip}`);
+        if (!r)
+          console.log(`minecraft activity check failed for ip: ${item.ip}`);
+        if (!c) console.log(`connection check failed for ip: ${item.ip}`);
       }
     }
 
