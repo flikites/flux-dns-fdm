@@ -83,17 +83,6 @@ async function createNew(app_name, app_port, zone_name, domain_name) {
     console.log("app_name: ", app_name);
     console.log("app_port: ", app_port);
     console.log("flux Consensus live Ip list for tcp master app: ", liveIps);
-    // write liveIps to the file
-    let fileContent = "";
-    liveIps.forEach((ip, index) => {
-      fileContent += `${ip.ip}:${index === 0 ? "MASTER" : "SECONDARY"}:${
-        ip.hash
-      }\n`;
-    });
-
-    await fs.writeFile(clusterFilePath, fileContent);
-
-    console.log("fileContent ", fileContent);
 
     try {
       await createOrDeleteRecord(
@@ -105,6 +94,17 @@ async function createNew(app_name, app_port, zone_name, domain_name) {
     } catch (error) {
       console.log(`Error while creating or deleting record: ${error}`);
     }
+    // write liveIps to the file
+    let fileContent = "";
+    liveIps.forEach((ip, index) => {
+      fileContent += `${ip.ip}:${index === 0 ? "MASTER" : "SECONDARY"}:${
+        ip.hash
+      }\n`;
+    });
+
+    await fs.writeFile(clusterFilePath, fileContent);
+
+    console.log("fileContent ", fileContent);
   } catch (error) {
     console.error(`Error in createNew function: ${error}`);
   }
