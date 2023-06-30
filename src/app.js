@@ -63,12 +63,22 @@ async function createNew(app_name, app_port, zone_name, domain_name) {
       return item;
     });
 
+    const liveIps = [];
+    for (const item of commonIps) {
+      const r = await checkConnection(item.ip, app_port);
+      if (r) {
+        liveIps.push(item);
+      } else {
+        console.log(`connection check failed for ip: ${item.ip}`);
+      }
+    }
+
     console.log("app_name: ", app_name);
     console.log("app_port: ", app_port);
-    console.log("flux Consensus live Ip list for minecraft app: ", commonIps);
+    console.log("flux Consensus live Ip list for minecraft app: ", liveIps);
     // write liveIps to the file
     let fileContent = "";
-    commonIps.forEach((ip, index) => {
+    liveIps.forEach((ip, index) => {
       fileContent += `${ip.ip}:${index === 0 ? "MASTER" : "SECONDARY"}:${
         ip.hash
       }\n`;
@@ -80,7 +90,7 @@ async function createNew(app_name, app_port, zone_name, domain_name) {
 
     try {
       await createOrDeleteRecord(
-        commonIps[0].ip,
+        liveIps[0].ip,
         app_port,
         domain_name,
         zone_name
