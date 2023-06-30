@@ -17,23 +17,30 @@ const clusterFilePath = path.join(process.env.FILE_PATH, "cluster_ip.txt");
 async function checkIP(workerData) {
   const { app_name, app_port, zone_name, domain_name } = workerData;
   try {
-    if (await fs.access(clusterFilePath)) {
-      const ip = (await fs.readFile(clusterFilePath, "utf8"))
-        .split("\n")[0]
-        .split(":")[0];
-      const isConnected = await checkConnection(ip, app_port);
-      if (isConnected) {
-        console.log("master node is active ", ip);
-      } else {
-        await createOrDeleteRecord(ip, app_port, domain_name, zone_name);
-        console.log("creating new node, old node is not working");
-        await createNew(app_name, app_port, zone_name, domain_name);
-      }
+    await fs.access(clusterFilePath);
+  } catch (error) {
+    await fs.mkdir(path.dirname(clusterFilePath), { recursive: true });
+    await fs.writeFile(clusterFilePath, "");
+  }
+
+  try {
+    const ip = (await fs.readFile(clusterFilePath, "utf8"))
+      .split("\n")[0]
+      .split(":")[0];
+    const isConnected = await checkConnection(ip, app_port);
+    if (isConnected) {
+      console.log("master node is active ", ip);
     } else {
+      await createOrDeleteRecord(ip, app_port, domain_name, zone_name);
+      console.log("creating new node, old node is not working");
       await createNew(app_name, app_port, zone_name, domain_name);
     }
   } catch (error) {
     console.error(`Error in checkIP function: ${error}`);
+    console.log(
+      "creating new record file cluster_ip.txt does not exist or empty"
+    );
+    await createNew(app_name, app_port, zone_name, domain_name);
   }
 }
 
@@ -75,7 +82,7 @@ async function createNew(app_name, app_port, zone_name, domain_name) {
 
     console.log("app_name: ", app_name);
     console.log("app_port: ", app_port);
-    console.log("flux Consensus live Ip list for minecraft app: ", liveIps);
+    console.log("flux Consensus live Ip list for tcp master app: ", liveIps);
     // write liveIps to the file
     let fileContent = "";
     liveIps.forEach((ip, index) => {
