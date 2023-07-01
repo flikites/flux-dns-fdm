@@ -32,14 +32,12 @@ async function checkIP(workerData) {
       console.log("master node is active ", ip);
     } else {
       await createOrDeleteRecord(ip, app_port, domain_name, zone_name);
-      console.log("creating new node, old node is not working");
+      console.log("selecting new master node.");
       await createNew(app_name, app_port, zone_name, domain_name);
     }
   } catch (error) {
     console.error(`Error in checkIP function: ${error}`);
-    console.log(
-      "creating new record file cluster_ip.txt does not exist or empty"
-    );
+    console.log("creating new record and file cluster_ip.txt");
     await createNew(app_name, app_port, zone_name, domain_name);
   }
 }
@@ -72,10 +70,14 @@ async function createNew(app_name, app_port, zone_name, domain_name) {
 
     const liveIps = [];
     for (const item of commonIps) {
-      const r = await checkConnection(item.ip, app_port);
-      if (r) {
-        liveIps.push(item);
-      } else {
+      try {
+        const r = await checkConnection(item.ip, app_port);
+        if (r) {
+          liveIps.push(item);
+        } else {
+          console.log(`connection check failed for ip: ${item.ip}`);
+        }
+      } catch (error) {
         console.log(`connection check failed for ip: ${item.ip}`);
       }
     }
