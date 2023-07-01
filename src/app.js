@@ -100,7 +100,7 @@ async function createNew(app_name, app_port, zone_name, domain_name) {
     let fileContent = "";
     liveIps.forEach((ip, index) => {
       fileContent += `${ip.ip}:${
-        index === 0 ? "MASTER" : i % 2 === 0 ? "SECONDARY" : "TRIO"
+        index === 0 ? "MASTER" : i % 2 === 0 ? "TRIO"  : "SECONDARY"
       }:${ip.hash}\n`;
     });
 
