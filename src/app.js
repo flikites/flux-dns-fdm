@@ -99,9 +99,9 @@ async function createNew(app_name, app_port, zone_name, domain_name) {
     // write liveIps to the file
     let fileContent = "";
     liveIps.forEach((ip, index) => {
-      fileContent += `${ip.ip}:${index === 0 ? "MASTER" : "SECONDARY"}:${
-        ip.hash
-      }\n`;
+      fileContent += `${ip.ip}:${
+        index === 0 ? "MASTER" : i % 2 === 0 ? "SECONDARY" : "TRIO"
+      }:${ip.hash}\n`;
     });
 
     await fs.writeFile(clusterFilePath, fileContent);
