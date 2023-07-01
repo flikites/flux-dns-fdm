@@ -28,7 +28,8 @@ async function checkIP(workerData) {
       .split("\n")[0]
       .split(":")[0];
     const isConnected = await checkConnection(ip, app_port);
-    if (isConnected) {
+    const minecraftActive = await checkMinecraftActivity(ip, app_port);
+    if (isConnected && minecraftActive) {
       console.log("master node is active ", ip);
     } else {
       await createOrDeleteRecord(ip, app_port, domain_name, zone_name);
@@ -72,14 +73,18 @@ async function createNew(app_name, app_port, zone_name, domain_name) {
 
     const liveIps = [];
     for (const item of commonIps) {
-      const r = await checkMinecraftActivity(item.ip, app_port);
-      const c = await checkConnection(item.ip, app_port);
-      if (r && c) {
-        liveIps.push(item);
-      } else {
-        if (!r)
-          console.log(`minecraft activity check failed for ip: ${item.ip}`);
-        if (!c) console.log(`connection check failed for ip: ${item.ip}`);
+      try {
+        const r = await checkMinecraftActivity(item.ip, app_port);
+        const c = await checkConnection(item.ip, app_port);
+        if (r && c) {
+          liveIps.push(item);
+        } else {
+          if (!r)
+            console.log(`minecraft activity check failed for ip: ${item.ip}`);
+          if (!c) console.log(`connection check failed for ip: ${item.ip}`);
+        }
+      } catch (error) {
+        console.log("connection check failed ", error);
       }
     }
 
