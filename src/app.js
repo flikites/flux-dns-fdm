@@ -27,22 +27,55 @@ async function checkIP(workerData) {
     const ip = (await fs.readFile(clusterFilePath, "utf8"))
       .split("\n")[0]
       .split(":")[0];
-    const isConnected = await checkConnection(ip, app_port);
-    const minecraftActive = await checkMinecraftActivity(ip, app_port);
+    const [isConnected, minecraftActive] = await Promise.all([
+      checkConnection(ip, app_port),
+      checkMinecraftActivity(ip, app_port),
+    ]);
+
     if (isConnected && minecraftActive) {
       console.log("master node is active ", ip);
     } else {
-      await createOrDeleteRecord(ip, app_port, domain_name, zone_name);
-      console.log("creating new node, old node is not working");
+      console.log("updating master node ip, old master node is not working");
       await createNew(app_name, app_port, zone_name, domain_name);
     }
   } catch (error) {
     console.error(`Error in checkIP function: ${error}`);
     console.log(
-      "creating new record file cluster_ip.txt does not exist or empty"
+      "updating new record file cluster_ip.txt does not exist or empty"
     );
     await createNew(app_name, app_port, zone_name, domain_name);
   }
+}
+
+async function checkAndAddLiveIps(commonIps, app_port) {
+  const liveIps = [];
+  for (const item of commonIps) {
+    try {
+      if (await checkConnection(item.ip, app_port)) {
+        liveIps.push(item);
+      } else {
+        console.log(`connection check failed for ip: ${item.ip}`);
+      }
+    } catch (error) {
+      console.log("connection check failed ", error?.message);
+    }
+  }
+  return liveIps;
+}
+
+async function createOrUpdateFile(liveIps, newMasterIp = null) {
+  console.log("liveIPS ", liveIps);
+  console.log("liveIPS ", liveIps);
+  let fileContent = liveIps
+    .map((ip) => {
+      const ipType = ip.ip === newMasterIp ? "MASTER" : "SECONDARY";
+      return `${ip.ip}:${ipType}:${ip.hash}`;
+    })
+    .join("\n");
+
+  console.log("updating cluster_ips.txt with healthy ips ");
+  await fs.writeFile(clusterFilePath, fileContent);
+  console.log("fileContent\n\n", fileContent);
 }
 
 async function createNew(app_name, app_port, zone_name, domain_name) {
@@ -71,51 +104,27 @@ async function createNew(app_name, app_port, zone_name, domain_name) {
       return item;
     });
 
-    const liveIps = [];
-    for (const item of commonIps) {
+    const liveIps = await checkAndAddLiveIps(commonIps, app_port);
+
+    let masterIp = liveIps?.[0]?.ip;
+    console.log("selected master ", masterIp);
+    // write liveIps to the file
+    await createOrUpdateFile(liveIps, masterIp);
+
+    for (const r of liveIps) {
       try {
-        const r = await checkMinecraftActivity(item.ip, app_port);
-        const c = await checkConnection(item.ip, app_port);
-        if (r && c) {
-          liveIps.push(item);
-        } else {
-          if (!r)
-            console.log(`minecraft activity check failed for ip: ${item.ip}`);
-          if (!c) console.log(`connection check failed for ip: ${item.ip}`);
+        if (await checkMinecraftActivity(r.ip, app_port)) {
+          await createOrUpdateRecord(r.ip, domain_name, zone_name);
+          if (r.ip !== masterIp) {
+            await createOrUpdateFile(liveIps, r.ip);
+          }
         }
       } catch (error) {
-        console.log("connection check failed ", error);
+        console.log(`Error while creating record: ${error?.message}`);
       }
     }
-
-    console.log("app_name: ", app_name);
-    console.log("app_port: ", app_port);
-    console.log("flux Consensus live Ip list for minecraft app: ", liveIps);
-
-    try {
-      await createOrDeleteRecord(
-        liveIps[0].ip,
-        app_port,
-        domain_name,
-        zone_name
-      );
-    } catch (error) {
-      console.log(`Error while creating or deleting record: ${error}`);
-    }
-
-    // write liveIps to the file
-    let fileContent = "";
-    liveIps.forEach((ip, index) => {
-      fileContent += `${ip.ip}:${index === 0 ? "MASTER" : "SECONDARY"}:${
-        ip.hash
-      }\n`;
-    });
-
-    await fs.writeFile(clusterFilePath, fileContent);
-
-    console.log("fileContent ", fileContent);
   } catch (error) {
-    console.error(`Error in createNew function: ${error}`);
+    console.error(`Error in createNew function: ${error?.message}`);
   }
 }
 
@@ -123,17 +132,17 @@ async function getResponses(urls) {
   try {
     const requests = urls.map((url) =>
       axios.get(url).catch((error) => {
-        console.log(`Error while making request to ${url}: ${error}`);
+        console.log(`Error while making request to ${url}: ${error?.message}`);
       })
     );
 
     const responses = await axios.all(requests).catch((error) => {
-      console.log(`Error while making concurrent requests: ${error}`);
+      console.log(`Error while making concurrent requests: ${error?.message}`);
     });
 
     return responses;
   } catch (error) {
-    console.error(`Error in getResponses function: ${error}`);
+    console.error(`Error in getResponses function: ${error?.message}`);
   }
 }
 
@@ -148,71 +157,62 @@ async function checkMinecraftActivity(ip, app_port) {
     return response?.ping; // Check if Minecraft server is online
   } catch (error) {
     console.log(
-      `Error while checking Minecraft activity for server ${ip}: ${error}`
+      `Error while checking Minecraft activity for server ${ip}: ${error?.message}`
     );
     return false;
   }
 }
 
-async function createOrDeleteRecord(selectedIp, appPort, domainName, zoneName) {
-  // Check if the selected IP returns success response
-  const isConnected = await checkConnection(selectedIp, appPort);
-  console.log(
-    `Checking if IP exists /zones/${zoneName}/dns_records?type=A&name=${domainName}&content=${selectedIp}`
-  );
-
+async function createOrUpdateRecord(selectedIp, domainName, zoneId) {
+  const comment = "master";
   const records = await api
-    .get(`/zones/${zoneName}/dns_records?type=A&name=${domainName}`)
+    .get(
+      `/zones/${zoneId}/dns_records?type=A&name=${domainName}&comment=${comment}`
+    )
     .then(async ({ data }) => {
-      const validRecords = [];
-      for (const record of data?.result ?? []) {
-        try {
-          const isConnected = await checkConnection(record.content, appPort);
-          if (isConnected) {
-            validRecords.push(record);
-          } else {
-            console.log(
-              `Deleting bad record: IP ${record.content} Domain ${domainName}`
-            );
-            await api.delete(`/zones/${zoneName}/dns_records/${record.id}`);
-          }
-        } catch (error) {
-          console.log(
-            `Deleting bad record: IP ${record.content} Domain ${domainName}`
-          );
-          await api.delete(`/zones/${zoneName}/dns_records/${record.id}`);
-        }
-      }
-      return validRecords;
+      return data?.result ?? [];
     });
 
-  const selectedRecord = records.find(
-    (record) => record.content === selectedIp
-  );
-  if (isConnected) {
-    if (!selectedRecord) {
-      console.log(
-        `Creating new record for IP ${selectedIp} in Cloudflare DNS Server`
-      );
-      // Create new DNS record
-      await api.post(`/zones/${zoneName}/dns_records`, {
-        type: "A",
-        name: domainName,
-        content: selectedIp,
-        ttl: 60,
-      });
-      console.log(
-        `Created new record for IP ${selectedIp} in Cloudflare DNS Server`
-      );
-    } else {
-      console.log(
-        `Record for IP ${selectedIp} already exists in Cloudflare DNS Server`
-      );
+  console.log("records ", records);
+  const selectedRecord = records?.[0];
+
+  if (records.length > 1) {
+    for (let i = 1; i < records.length; i++) {
+      try {
+        await api.delete(`/zones/${zoneId}/dns_records/${records[i].id}`);
+      } catch (error) {
+        console.log(`failed to delete the record ${records[i].id}`);
+        console.log(error?.message);
+      }
     }
-  } else if (!isConnected && selectedRecord) {
-    console.log(`Unsuccessful response from IP ${selectedIp}`);
-    await api.delete(`/zones/${zoneName}/dns_records/${selectedRecord.id}`);
-    console.log(`IP ${selectedIp} deleted from DNS server`);
+  }
+
+  if (!selectedRecord) {
+    console.log(
+      `Creating new record for IP ${selectedIp} in Cloudflare DNS Server`
+    );
+    // Create new DNS record
+    await api.post(`/zones/${zoneId}/dns_records`, {
+      type: "A",
+      name: domainName,
+      content: selectedIp,
+      ttl: 120,
+      comment: comment,
+      proxied: false,
+    });
+    console.log(
+      `Created new record for IP ${selectedIp} in Cloudflare DNS Server`
+    );
+  } else {
+    await api.put(`/zones/${zoneId}/dns_records/${selectedRecord.id}`, {
+      type: "A",
+      name: domainName,
+      content: selectedIp,
+      ttl: 120,
+      proxied: false,
+      comment: comment,
+    });
+    console.log(`Updated record with new master ip ${selectedIp}`);
   }
 }
 
