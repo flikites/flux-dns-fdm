@@ -42,7 +42,7 @@ async function checkIP(workerData) {
         console.log("master node is active = passed gamedig check ", ip);
       } else {
         console.log("updating master node ip, old master node is not working");
-        await createNew(app_name, app_port, zone_name, domain_name);
+        await createNew(app_name, app_port, zone_name, domain_name, ip);
       }
     } else {
       console.log("cluster_ip.txt is empty creating and updating new master");
@@ -88,7 +88,13 @@ async function createOrUpdateFile(liveIps, newMasterIp = null) {
   console.log("fileContent\n\n", fileContent);
 }
 
-async function createNew(app_name, app_port, zone_name, domain_name) {
+async function createNew(
+  app_name,
+  app_port,
+  zone_name,
+  domain_name,
+  oldMaster = null
+) {
   try {
     const randomFluxNodes = await getWorkingNodes();
     const randomUrls = randomFluxNodes.map(
@@ -115,10 +121,22 @@ async function createNew(app_name, app_port, zone_name, domain_name) {
     });
 
     let masterIp = commonIps?.[0]?.ip;
+    if (oldMaster) {
+      console.log("oldMaster ", masterIp);
+      masterIp = commonIps.find((ip) => ip.ip !== oldMaster)?.ip;
+      console.log("new Master ", masterIp);
+    }
     console.log("selected master ", masterIp);
     // write commonIps to the file
     console.log("writing ips to file without any check");
     await createOrUpdateFile(commonIps, masterIp);
+
+    if (oldMaster) {
+      console.log(
+        "old master die waiting before checking new master connection"
+      );
+      await new Promise((resolve) => setTimeout(resolve, 1000 * 60 * 3));
+    }
     console.log("unchecked file update done");
 
     const liveIps = await checkAndAddLiveIps(commonIps, app_port);
