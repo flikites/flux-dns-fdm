@@ -104,12 +104,14 @@ async function createNew(app_name, app_port, zone_name, domain_name) {
       return item;
     });
 
-    const liveIps = await checkAndAddLiveIps(commonIps, app_port);
-
-    let masterIp = liveIps?.[0]?.ip;
+    let masterIp = commonIps?.[0]?.ip;
     console.log("selected master ", masterIp);
-    // write liveIps to the file
-    await createOrUpdateFile(liveIps, masterIp);
+    // write commonIps to the file
+    console.log("writing ips to file without any check");
+    await createOrUpdateFile(commonIps, masterIp);
+    console.log("unchecked file update done");
+
+    const liveIps = await checkAndAddLiveIps(commonIps, app_port);
 
     for (const r of liveIps) {
       try {
