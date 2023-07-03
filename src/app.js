@@ -26,16 +26,26 @@ async function checkIP(workerData) {
   try {
     const ip = (await fs.readFile(clusterFilePath, "utf8"))
       .split("\n")[0]
-      .split(":")[0];
-    const [isConnected, minecraftActive] = await Promise.all([
-      checkConnection(ip, app_port),
-      checkMinecraftActivity(ip, app_port),
-    ]);
+      .split(":")[0]
+      .trim();
 
-    if (isConnected && minecraftActive) {
-      console.log("master node is active ", ip);
+    if (ip) {
+      const [isConnected, minecraftActive] = await Promise.all([
+        checkConnection(ip, app_port),
+        checkMinecraftActivity(ip, app_port),
+      ]);
+
+      console.log("isConnected ", isConnected);
+      console.log("minecraftActive ", minecraftActive);
+
+      if (isConnected && minecraftActive) {
+        console.log("master node is active = passed gamedig check ", ip);
+      } else {
+        console.log("updating master node ip, old master node is not working");
+        await createNew(app_name, app_port, zone_name, domain_name);
+      }
     } else {
-      console.log("updating master node ip, old master node is not working");
+      console.log("cluster_ip.txt is empty creating and updating new master");
       await createNew(app_name, app_port, zone_name, domain_name);
     }
   } catch (error) {
@@ -113,6 +123,7 @@ async function createNew(app_name, app_port, zone_name, domain_name) {
 
     const liveIps = await checkAndAddLiveIps(commonIps, app_port);
 
+    console.log("found some live ips that passes tcp check ", liveIps);
     for (const r of liveIps) {
       try {
         if (await checkMinecraftActivity(r.ip, app_port)) {
