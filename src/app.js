@@ -122,7 +122,7 @@ async function createNew(
 
     let masterIp = commonIps?.[0]?.ip;
     if (oldMaster) {
-      console.log("oldMaster ", masterIp);
+      console.log("oldMaster ", oldMaster);
       masterIp = commonIps.find((ip) => ip.ip !== oldMaster)?.ip;
       console.log("new Master ", masterIp);
     }
