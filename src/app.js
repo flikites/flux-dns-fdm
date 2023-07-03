@@ -131,6 +131,7 @@ async function createNew(app_name, app_port, zone_name, domain_name) {
           if (r.ip !== masterIp) {
             await createOrUpdateFile(liveIps, r.ip);
           }
+          break;
         }
       } catch (error) {
         console.log(`Error while creating record: ${error?.message}`);
