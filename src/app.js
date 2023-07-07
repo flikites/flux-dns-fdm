@@ -5,20 +5,18 @@ const dotenv = require("dotenv");
 dotenv.config();
 const axios = require("axios");
 
-const {
-  api,
-  findMostCommonResponse,
-  getWorkingNodes,
-  checkConnection,
-} = require("./utils");
+const { api, findMostCommonResponse, getWorkingNodes } = require("./utils");
 
 const clusterFilePath = path.join(process.env.FILE_PATH, "cluster_ip.txt");
+const RETRY = Number(process.env.RETRY ?? "5");
+const RETRY_INTERVAL = Number(process.env.RETRY_INTERVAL ?? "15000");
 
 async function checkIP(workerData) {
   const { app_name, app_port, zone_name, domain_name } = workerData;
   try {
     await fs.access(clusterFilePath);
   } catch (error) {
+    console.log("cluster_ip.txt file is not exist creating the empty file.");
     await fs.mkdir(path.dirname(clusterFilePath), { recursive: true });
     await fs.writeFile(clusterFilePath, "");
   }
@@ -30,15 +28,10 @@ async function checkIP(workerData) {
       .trim();
 
     if (ip) {
-      const [isConnected, minecraftActive] = await Promise.all([
-        checkConnection(ip, app_port),
-        checkMinecraftActivity(ip, app_port),
-      ]);
-
-      console.log("isConnected ", isConnected);
+      const minecraftActive = await checkMinecraftActivity(ip, app_port);
       console.log("minecraftActive ", minecraftActive);
 
-      if (isConnected && minecraftActive) {
+      if (minecraftActive) {
         console.log("master node is active = passed gamedig check ", ip);
       } else {
         console.log("updating master node ip, old master node is not working");
@@ -55,22 +48,6 @@ async function checkIP(workerData) {
     );
     await createNew(app_name, app_port, zone_name, domain_name);
   }
-}
-
-async function checkAndAddLiveIps(commonIps, app_port) {
-  const liveIps = [];
-  for (const item of commonIps) {
-    try {
-      if (await checkConnection(item.ip, app_port)) {
-        liveIps.push(item);
-      } else {
-        console.log(`connection check failed for ip: ${item.ip}`);
-      }
-    } catch (error) {
-      console.log("connection check failed ", error?.message);
-    }
-  }
-  return liveIps;
 }
 
 async function createOrUpdateFile(liveIps, newMasterIp = null) {
@@ -128,31 +105,36 @@ async function createNew(
     }
     console.log("selected master ", masterIp);
     // write commonIps to the file
-    console.log("writing ips to file without any check");
+    console.log("updating cluster_ip.txt file without checking any connection");
     await createOrUpdateFile(commonIps, masterIp);
+    console.log("update cluster_ip.txt file done");
 
-    if (oldMaster) {
-      console.log(
-        "old master die waiting before checking new master connection"
-      );
-      await new Promise((resolve) => setTimeout(resolve, 1000 * 60 * 3));
-    }
-    console.log("unchecked file update done");
-
-    const liveIps = await checkAndAddLiveIps(commonIps, app_port);
-
-    console.log("found some live ips that passes tcp check ", liveIps);
-    for (const r of liveIps) {
-      try {
-        if (await checkMinecraftActivity(r.ip, app_port)) {
-          await createOrUpdateRecord(r.ip, domain_name, zone_name);
-          if (r.ip !== masterIp) {
-            await createOrUpdateFile(liveIps, r.ip);
+    console.log("starting gamedig check.");
+    let retry = 0;
+    while (retry < RETRY) {
+      let success = false;
+      for (const r of commonIps) {
+        try {
+          if (await checkMinecraftActivity(r.ip, app_port)) {
+            await createOrUpdateRecord(r.ip, domain_name, zone_name);
+            if (r.ip !== masterIp) {
+              await createOrUpdateFile(commonIps, r.ip);
+            }
+            retry = RETRY;
+            success = true;
+            console.log("successfully updated/created new master");
+            break;
           }
-          break;
+        } catch (error) {
+          console.log(`Error while creating record: ${error?.message}`);
         }
-      } catch (error) {
-        console.log(`Error while creating record: ${error?.message}`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, RETRY_INTERVAL));
+      retry++;
+      if (!success) {
+        console.log("gamedig retry ", retry);
+      } else {
+        console.log("gamedig check successfully exiting the interval loop");
       }
     }
   } catch (error) {
