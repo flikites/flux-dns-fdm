@@ -73,6 +73,22 @@ async function createNew(
   oldMaster = null
 ) {
   try {
+    try {
+      const masterRecord = await getCurrentMasterRecord(zone_name, domain_name);
+      if (masterRecord) {
+        if (await checkMinecraftActivity(masterRecord.content, app_port)) {
+          console.log(
+            `current master from dns server is alive so avoiding further check, current master is ${masterRecord.content}`
+          );
+          return;
+        }
+      }
+    } catch (error) {
+      console.log(
+        "something went wrong when checking current master info ",
+        error?.message
+      );
+    }
     const randomFluxNodes = await getWorkingNodes();
     const randomUrls = randomFluxNodes.map(
       (ip) => `http://${ip}:16127/apps/location/${app_name}`
@@ -230,6 +246,16 @@ async function createOrUpdateRecord(selectedIp, domainName, zoneId) {
   }
 }
 
+async function getCurrentMasterRecord(zoneId, domainName) {
+  const records = await api
+    .get(
+      `/zones/${zoneId}/dns_records?type=A&name=${domainName}&comment=master`
+    )
+    .then(async ({ data }) => {
+      return data?.result ?? [];
+    });
+  return records?.[0];
+}
 module.exports = {
   checkIP,
 };
