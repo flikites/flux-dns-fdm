@@ -125,32 +125,49 @@ async function createNew(
     await createOrUpdateFile(commonIps, masterIp);
     console.log("update cluster_ip.txt file done");
 
-    console.log("starting gamedig check.");
-    let retry = 0;
-    while (retry < RETRY) {
-      let success = false;
-      for (const r of commonIps) {
-        try {
-          if (await checkMinecraftActivity(r.ip, app_port)) {
-            await createOrUpdateRecord(r.ip, domain_name, zone_name);
-            if (r.ip !== masterIp) {
-              await createOrUpdateFile(commonIps, r.ip);
+    let foundMaster = false;
+    let currentIpIndex = 0;
+    while (!foundMaster) {
+      let retry = 0;
+      console.log("starting gamedig check.");
+      while (retry < RETRY) {
+        let success = false;
+        for (const r of commonIps) {
+          try {
+            if (await checkMinecraftActivity(r.ip, app_port)) {
+              await createOrUpdateRecord(r.ip, domain_name, zone_name);
+              if (r.ip !== masterIp) {
+                await createOrUpdateFile(commonIps, r.ip);
+              }
+              retry = RETRY;
+              success = true;
+              foundMaster = true;
+              console.log("successfully updated/created new master");
+              break;
             }
-            retry = RETRY;
-            success = true;
-            console.log("successfully updated/created new master");
-            break;
+          } catch (error) {
+            console.log(`Error while creating record: ${error?.message}`);
           }
-        } catch (error) {
-          console.log(`Error while creating record: ${error?.message}`);
+        }
+        await new Promise((resolve) => setTimeout(resolve, RETRY_INTERVAL));
+        retry++;
+        if (!success) {
+          console.log("gamedig retry ", retry);
+        } else {
+          console.log("gamedig check successfully exiting the interval loop");
         }
       }
-      await new Promise((resolve) => setTimeout(resolve, RETRY_INTERVAL));
-      retry++;
+
       if (!success) {
-        console.log("gamedig retry ", retry);
-      } else {
-        console.log("gamedig check successfully exiting the interval loop");
+        currentIpIndex++;
+        if (currentIpIndex < commonIps.length) {
+          masterIp = commonIps?.[currentIpIndex]?.ip;
+        } else {
+          currentIpIndex = 0;
+          masterIp = commonIps?.[currentIpIndex]?.ip;
+        }
+        console.log("updgrading secondary to new master ", masterIp);
+        await createOrUpdateFile(commonIps, masterIp);
       }
     }
   } catch (error) {
