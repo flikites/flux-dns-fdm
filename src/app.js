@@ -129,9 +129,10 @@ async function createNew(
     let currentIpIndex = 0;
     while (!foundMaster) {
       let retry = 0;
+      let success = false;
       console.log("starting gamedig check.");
       while (retry < RETRY) {
-        let success = false;
+        success = false;
         for (const r of commonIps) {
           try {
             if (await checkMinecraftActivity(r.ip, app_port)) {
