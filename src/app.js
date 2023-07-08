@@ -132,7 +132,6 @@ async function createNew(
       let success = false;
       console.log("starting gamedig check.");
       while (retry < RETRY) {
-        success = false;
         for (const r of commonIps) {
           try {
             if (await checkMinecraftActivity(r.ip, app_port)) {
