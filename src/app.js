@@ -83,7 +83,37 @@ async function checkIP(workerData) {
   }
 }
 
-async function createOrUpdateFile(liveIps, newMasterIp = null) {
+async function createOrUpdateFile(liveIps, newMasterIp, zoneId, domainName) {
+  try {
+    const activeMaster = await getCurrentMasterRecord(zoneId, domainName);
+    if (activeMaster) {
+      let oldDateTime = new Date(activeMaster.modified_on); // your old date-time string
+      let currentDateTime = new Date(); // current date-time
+
+      // convert both times to milliseconds
+      let oldDateTime_ms = oldDateTime.getTime();
+      let currentDateTime_ms = currentDateTime.getTime();
+
+      // calculate the difference in time
+      let difference_ms = currentDateTime_ms - oldDateTime_ms;
+
+      // convert time to minutes
+      let difference_in_minutes = difference_ms / 1000 / 60;
+
+      if (difference_in_minutes < 5) {
+        console.log(
+          "previous update was less than 5 minutes ago, we are not allowed update master in 5minutes."
+        );
+        return;
+      }
+    }
+  } catch (error) {
+    console.log(
+      "checking active master has failed before updating file ",
+      error?.message
+    );
+  }
+
   console.log("Live IPs: ", liveIps);
 
   let fileContent = liveIps
@@ -159,7 +189,7 @@ async function createNew(
     console.log(
       "Updating the file cluster_ip.txt without checking any connection..."
     );
-    await createOrUpdateFile(commonIps, masterIp);
+    await createOrUpdateFile(commonIps, masterIp, zone_name, domain_name);
     console.log("Update to cluster_ip.txt file completed.");
 
     let foundMaster = false;
@@ -174,7 +204,12 @@ async function createNew(
             if (await checkMinecraftActivity(r.ip, app_port)) {
               await createOrUpdateRecord(r.ip, domain_name, zone_name);
               if (r.ip !== masterIp) {
-                await createOrUpdateFile(commonIps, r.ip);
+                await createOrUpdateFile(
+                  commonIps,
+                  r.ip,
+                  zone_name,
+                  domain_name
+                );
               }
               retry = RETRY;
               success = true;
@@ -204,7 +239,7 @@ async function createNew(
           masterIp = commonIps?.[currentIpIndex]?.ip;
         }
         console.log("updgrading secondary to new master ", masterIp);
-        await createOrUpdateFile(commonIps, masterIp);
+        await createOrUpdateFile(commonIps, masterIp, zone_name, domain_name);
       }
     }
   } catch (error) {
