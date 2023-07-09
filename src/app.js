@@ -86,6 +86,13 @@ async function checkIP(workerData) {
 async function createOrUpdateFile(liveIps, newMasterIp, zoneId, domainName) {
   try {
     const activeMaster = await getCurrentMasterRecord(zoneId, domainName);
+    if (newMasterIp === activeMaster?.content) {
+      console.log(
+        "new master and existing master is same so avoiding update the file"
+      );
+      return;
+    }
+
     if (activeMaster) {
       let oldDateTime = new Date(activeMaster.modified_on); // your old date-time string
       let currentDateTime = new Date(); // current date-time
@@ -102,9 +109,9 @@ async function createOrUpdateFile(liveIps, newMasterIp, zoneId, domainName) {
 
       if (difference_in_minutes < 5) {
         console.log(
-          "previous update was less than 5 minutes ago, we are not allowed update master in 5minutes."
+          "our current master is active so we will not change current master with new master"
         );
-        return;
+        newMasterIp = activeMaster.content;
       }
     }
   } catch (error) {
