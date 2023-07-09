@@ -16,7 +16,9 @@ async function checkIP(workerData) {
   try {
     await fs.access(clusterFilePath);
   } catch (error) {
-    console.log("cluster_ip.txt file is not exist creating the empty file.");
+    console.log(
+      "The file cluster_ip.txt does not exist. Creating an empty file..."
+    );
     await fs.mkdir(path.dirname(clusterFilePath), { recursive: true });
     await fs.writeFile(clusterFilePath, "");
   }
@@ -28,31 +30,62 @@ async function checkIP(workerData) {
       .trim();
 
     if (ip) {
-      const minecraftActive = await checkMinecraftActivity(ip, app_port);
-      console.log("minecraftActive ", minecraftActive);
+      let minecraftActive = 0;
+      let attempts = 0;
+
+      console.log("Checking Minecraft activity...");
+      while (attempts < 3 && !minecraftActive) {
+        minecraftActive = await checkMinecraftActivity(ip, app_port);
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+        attempts += 1;
+        if (!minecraftActive) {
+          console.log(
+            "Attempt",
+            attempts,
+            "to check Minecraft activity failed. Retrying..."
+          );
+        }
+      }
+
+      console.log(
+        `Minecraft activity status for current master : ${
+          minecraftActive ? "Active" : "Inactive"
+        } ip: ${ip}`
+      );
 
       if (minecraftActive) {
-        console.log("master node is active = passed gamedig check ", ip);
+        console.log(
+          "The master node is active. It has passed the gamedig check. IP: ",
+          ip
+        );
+        return;
       } else {
-        console.log("updating master node ip, old master node is not working");
+        console.log(
+          "Updating the master node IP. The old master node is not working."
+        );
         await createNew(app_name, app_port, zone_name, domain_name, ip);
       }
     } else {
-      console.log("cluster_ip.txt is empty creating and updating new master");
+      console.log(
+        "The file cluster_ip.txt is empty. Creating and updating new master..."
+      );
       await createNew(app_name, app_port, zone_name, domain_name);
     }
   } catch (error) {
-    console.error(`Error in checkIP function: ${error}`);
+    console.error(
+      "An error occurred in the checkIP function: ",
+      error?.message
+    );
     console.log(
-      "updating new record file cluster_ip.txt does not exist or empty"
+      "Updating the new record file. The file cluster_ip.txt does not exist or is empty."
     );
     await createNew(app_name, app_port, zone_name, domain_name);
   }
 }
 
 async function createOrUpdateFile(liveIps, newMasterIp = null) {
-  console.log("liveIPS ", liveIps);
-  console.log("liveIPS ", liveIps);
+  console.log("Live IPs: ", liveIps);
+
   let fileContent = liveIps
     .map((ip) => {
       const ipType = ip.ip === newMasterIp ? "MASTER" : "SECONDARY";
@@ -60,9 +93,9 @@ async function createOrUpdateFile(liveIps, newMasterIp = null) {
     })
     .join("\n");
 
-  console.log("updating cluster_ips.txt with healthy ips ");
+  console.log("Updating the file cluster_ips.txt with healthy IPs...");
   await fs.writeFile(clusterFilePath, fileContent);
-  console.log("fileContent\n\n", fileContent);
+  console.log("File content:\n", fileContent);
 }
 
 async function createNew(
@@ -82,6 +115,8 @@ async function createNew(
           );
           return;
         }
+      } else {
+        console.log("not found any active master in the dns record");
       }
     } catch (error) {
       console.log(
@@ -105,7 +140,7 @@ async function createNew(
         );
       }
     }
-
+    console.log("Finding most common IPs...");
     const commonIps = findMostCommonResponse(responseData).map((item) => {
       if (item.ip.includes(":")) {
         return { ip: item.ip.split(":")[0], hash: item.hash };
@@ -115,15 +150,17 @@ async function createNew(
 
     let masterIp = commonIps?.[0]?.ip;
     if (oldMaster) {
-      console.log("oldMaster ", oldMaster);
+      console.log("Old Master IP: ", oldMaster);
       masterIp = commonIps.find((ip) => ip.ip !== oldMaster)?.ip;
-      console.log("new Master ", masterIp);
+      console.log("New Master IP: ", masterIp);
     }
-    console.log("selected master ", masterIp);
-    // write commonIps to the file
-    console.log("updating cluster_ip.txt file without checking any connection");
+    console.log("Selected Master IP: ", masterIp);
+
+    console.log(
+      "Updating the file cluster_ip.txt without checking any connection..."
+    );
     await createOrUpdateFile(commonIps, masterIp);
-    console.log("update cluster_ip.txt file done");
+    console.log("Update to cluster_ip.txt file completed.");
 
     let foundMaster = false;
     let currentIpIndex = 0;
@@ -154,7 +191,7 @@ async function createNew(
         if (!success) {
           console.log("gamedig retry ", retry);
         } else {
-          console.log("gamedig check successfully exiting the interval loop");
+          console.log("gamedig check successfull exiting the interval loop");
         }
       }
 
@@ -195,6 +232,7 @@ async function getResponses(urls) {
 
 async function checkMinecraftActivity(ip, app_port) {
   try {
+    console.log(`Checking Minecraft activity for server ${ip}...`);
     const response = await gamedig.query({
       type: "minecraft",
       host: ip,
