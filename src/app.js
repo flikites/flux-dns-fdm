@@ -109,7 +109,7 @@ async function createOrUpdateFile(liveIps, newMasterIp, zoneId, domainName) {
 
       if (difference_in_minutes < 5) {
         console.log(
-          "our current master is active so we will not change current master with new master"
+          "current master from dns server is alive so we will not replace current master with newmaster"
         );
         newMasterIp = activeMaster.content;
       }
@@ -143,24 +143,24 @@ async function createNew(
   oldMaster = null
 ) {
   try {
-    try {
-      const masterRecord = await getCurrentMasterRecord(zone_name, domain_name);
-      if (masterRecord) {
-        if (await checkMinecraftActivity(masterRecord.content, app_port)) {
-          console.log(
-            `current master from dns server is alive so avoiding further check, current master is ${masterRecord.content}`
-          );
-          return;
-        }
-      } else {
-        console.log("not found any active master in the dns record");
-      }
-    } catch (error) {
-      console.log(
-        "something went wrong when checking current master info ",
-        error?.message
-      );
-    }
+    // try {
+    //   const masterRecord = await getCurrentMasterRecord(zone_name, domain_name);
+    //   if (masterRecord) {
+    //     if (await checkMinecraftActivity(masterRecord.content, app_port)) {
+    //       console.log(
+    //         `current master from dns server is alive so avoiding further check, current master is ${masterRecord.content}`
+    //       );
+    //       return;
+    //     }
+    //   } else {
+    //     console.log("not found any active master in the dns record");
+    //   }
+    // } catch (error) {
+    //   console.log(
+    //     "something went wrong when checking current master info ",
+    //     error?.message
+    //   );
+    // }
     const randomFluxNodes = await getWorkingNodes();
     const randomUrls = randomFluxNodes.map(
       (ip) => `http://${ip}:16127/apps/location/${app_name}`
