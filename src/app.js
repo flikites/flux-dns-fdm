@@ -24,10 +24,7 @@ async function checkIP(workerData) {
   }
 
   try {
-    const ip = (await fs.readFile(clusterFilePath, "utf8"))
-      .split("\n")[0]
-      .split(":")[0]
-      .trim();
+    const ip = await getCurrentMasterFromFile();
 
     if (ip) {
       let minecraftActive = 0;
@@ -86,12 +83,18 @@ async function checkIP(workerData) {
 async function createOrUpdateFile(liveIps, newMasterIp, zoneId, domainName) {
   try {
     const activeMaster = await getCurrentMasterRecord(zoneId, domainName);
-    if (newMasterIp === activeMaster?.content) {
+    const masterFromFile = await getCurrentMasterFromFile();
+    if (
+      newMasterIp === activeMaster?.content &&
+      newMasterIp === masterFromFile
+    ) {
       console.log(
         "new master and existing master is same so avoiding update the file"
       );
       return;
     }
+    console.log("newMaster ", newMasterIp);
+    console.log("masterFromFile ", masterFromFile);
 
     if (activeMaster) {
       let oldDateTime = new Date(activeMaster.modified_on); // your old date-time string
@@ -143,24 +146,6 @@ async function createNew(
   oldMaster = null
 ) {
   try {
-    // try {
-    //   const masterRecord = await getCurrentMasterRecord(zone_name, domain_name);
-    //   if (masterRecord) {
-    //     if (await checkMinecraftActivity(masterRecord.content, app_port)) {
-    //       console.log(
-    //         `current master from dns server is alive so avoiding further check, current master is ${masterRecord.content}`
-    //       );
-    //       return;
-    //     }
-    //   } else {
-    //     console.log("not found any active master in the dns record");
-    //   }
-    // } catch (error) {
-    //   console.log(
-    //     "something went wrong when checking current master info ",
-    //     error?.message
-    //   );
-    // }
     const randomFluxNodes = await getWorkingNodes();
     const randomUrls = randomFluxNodes.map(
       (ip) => `http://${ip}:16127/apps/location/${app_name}`
@@ -185,12 +170,35 @@ async function createNew(
       return item;
     });
 
-    let masterIp = commonIps?.[0]?.ip;
+    let masterIp = await getCurrentMasterFromFile();
+
     if (oldMaster) {
       console.log("Old Master IP: ", oldMaster);
-      masterIp = commonIps.find((ip) => ip.ip !== oldMaster)?.ip;
+      masterIp = commonIps.find((ip) => ip.ip === oldMaster)?.ip;
       console.log("New Master IP: ", masterIp);
     }
+    try {
+      const masterRecord = await getCurrentMasterRecord(zone_name, domain_name);
+      if (
+        masterRecord &&
+        commonIps.find((cm) => cm.ip === masterRecord.content)
+      ) {
+        masterIp = masterRecord?.content;
+        console.log(
+          "current master node ip is exist in flux api and dns server so using this as currentMaster"
+        );
+      } else {
+        console.log(
+          "not found any active master in the dns record or that does not available in flux api"
+        );
+      }
+    } catch (error) {
+      console.log(
+        "something went wrong when checking current master info ",
+        error?.message
+      );
+    }
+
     console.log("Selected Master IP: ", masterIp);
 
     console.log(
@@ -344,14 +352,29 @@ async function createOrUpdateRecord(selectedIp, domainName, zoneId) {
 }
 
 async function getCurrentMasterRecord(zoneId, domainName) {
-  const records = await api
-    .get(
-      `/zones/${zoneId}/dns_records?type=A&name=${domainName}&comment=master`
-    )
-    .then(async ({ data }) => {
-      return data?.result ?? [];
-    });
-  return records?.[0];
+  try {
+    const records = await api
+      .get(
+        `/zones/${zoneId}/dns_records?type=A&name=${domainName}&comment=master`
+      )
+      .then(async ({ data }) => {
+        return data?.result ?? [];
+      });
+    return records?.[0];
+  } catch (error) {
+    console.log("unable to find master in dns server ", error?.message);
+  }
+  return undefined;
+}
+
+async function getCurrentMasterFromFile() {
+  const ips = (await fs.readFile(clusterFilePath, "utf8"))?.split("\n");
+
+  let row = ips?.find((c) => c.includes("MASTER"));
+  console.log("masterRow ", row);
+  let masterIP = row?.split(":")?.[0]?.trim();
+  console.log("ip from master row ", masterIP);
+  return masterIP;
 }
 module.exports = {
   checkIP,
