@@ -85,6 +85,7 @@ async function createOrUpdateFile(liveIps, newMasterIp, zoneId, domainName) {
     const activeMaster = await getCurrentMasterRecord(zoneId, domainName);
     const masterFromFile = await getCurrentMasterFromFile();
     if (
+      newMasterIp &&
       newMasterIp === activeMaster?.content &&
       newMasterIp === masterFromFile
     ) {
