@@ -55,6 +55,13 @@ async function checkIP(workerData) {
           "The master node is active. It has passed the gamedig check. IP: ",
           ip
         );
+        const currentDnsMaster = await getCurrentMasterRecord();
+        if (currentDnsMaster?.content !== ip) {
+          console.log(
+            "dns master is not matched with current healthy master so updating dns record"
+          );
+          await createOrUpdateRecord(ip, domain_name, zone_name);
+        }
         return;
       } else {
         console.log(
