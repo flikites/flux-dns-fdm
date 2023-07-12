@@ -351,6 +351,12 @@ async function createOrUpdateRecord(selectedIp, domainName, zoneId) {
       `Created new record for IP ${selectedIp} in Cloudflare DNS Server`
     );
   } else {
+    if (selectedIp === selectedRecord.content) {
+      console.log(
+        "selected master and dns master is same so not updating dns record."
+      );
+      return;
+    }
     await api.put(`/zones/${zoneId}/dns_records/${selectedRecord.id}`, {
       type: "A",
       name: domainName,
