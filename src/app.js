@@ -181,7 +181,7 @@ async function createNew(
       return item;
     });
 
-    let masterIp = await getCurrentMasterFromFile();
+    let masterIp = (await getCurrentMasterFromFile()) || commonIps?.[0].ip;
 
     if (oldMaster) {
       console.log("Old Master IP: ", oldMaster);
