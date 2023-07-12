@@ -123,7 +123,7 @@ async function createOrUpdateFile(liveIps, newMasterIp, zoneId, domainName) {
 
       if (difference_in_minutes < 5) {
         console.log(
-          "current master from dns server is alive so we will not replace current master with newmaster"
+          "current master from dns server is alive so we will not replace current master with new master"
         );
         newMasterIp = activeMaster.content;
       }
@@ -185,14 +185,15 @@ async function createNew(
 
     if (oldMaster) {
       console.log("Old Master IP: ", oldMaster);
-      masterIp = commonIps.find((ip) => ip.ip === oldMaster)?.ip;
+      masterIp = commonIps.find((ip) => ip.ip !== oldMaster)?.ip;
       console.log("New Master IP: ", masterIp);
     }
     try {
       const masterRecord = await getCurrentMasterRecord(zone_name, domain_name);
       if (
         masterRecord &&
-        commonIps.find((cm) => cm.ip === masterRecord.content)
+        commonIps.find((cm) => cm.ip === masterRecord.content) &&
+        (await checkMinecraftActivity(masterRecord.content, app_port))
       ) {
         masterIp = masterRecord?.content;
         console.log(
