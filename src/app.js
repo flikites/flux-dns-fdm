@@ -300,9 +300,10 @@ async function checkMinecraftActivity(ip, app_port) {
       host: ip,
       port: app_port,
     });
-
-    return response?.ping; // Check if Minecraft server is online
+    console.log("minecraft response ", response);
+    return true; // Check if Minecraft server is online
   } catch (error) {
+    console.log("minecraft error ", error?.message ?? error?.error);
     console.log(
       `Error while checking Minecraft activity for server ${ip}: ${error?.message}`
     );
