@@ -358,6 +358,11 @@ async function createOrUpdateRecord(selectedIp, domainName, zoneId) {
       );
       return;
     }
+    console.log("we are going to set this ip in dns record", selectedIp);
+    console.log("currentDns record ip is ", selectedRecord.content);
+    console.log(
+      "please check above log message to make sure it's spaming or not"
+    );
     await api.put(`/zones/${zoneId}/dns_records/${selectedRecord.id}`, {
       type: "A",
       name: domainName,
