@@ -26,7 +26,7 @@ async function checkIP(workerData) {
   try {
     const ip = await getCurrentMasterFromFile();
 
-    if (ip) {
+    if (ip && (await checkIsNodeHealthy(ip))) {
       let minecraftActive = 0;
       let attempts = 0;
 
@@ -174,12 +174,28 @@ async function createNew(
       }
     }
     console.log("Finding most common IPs...");
-    const commonIps = findMostCommonResponse(responseData).map((item) => {
+    const consensusIp = findMostCommonResponse(responseData).map((item) => {
       if (item.ip.includes(":")) {
         return { ip: item.ip.split(":")[0], hash: item.hash };
       }
       return item;
     });
+
+    const commonIps = [];
+
+    for (const item of consensusIp) {
+      if (await checkIsNodeHealthy(item.ip)) {
+        commonIps.push(item);
+        console.log(`node ${item.ip} is passed health check`);
+      } else {
+        console.log(`node ${item.ip} is not passed health check`);
+      }
+    }
+
+    if (!commonIps.length) {
+      console.log("no healthy nodes found");
+      return;
+    }
 
     let masterIp = (await getCurrentMasterFromFile()) || commonIps?.[0].ip;
 
@@ -399,6 +415,23 @@ async function getCurrentMasterFromFile() {
   let masterIP = row?.split(":")?.[0]?.trim();
   console.log("ip from master row ", masterIP);
   return masterIP;
+}
+
+async function checkIsNodeHealthy(ip) {
+  try {
+    const data = await axios
+      .get(`http://${ip}:16127/daemon/getbenchmarks`)
+      .then((res) => {
+        return JSON.parse(res.data?.data ?? `{}`);
+      });
+    console.log(
+      `new health check for ip ${ip} ping ${data.ping} passed? `,
+      data.ping > 0 && data.error === ""
+    );
+    return data.ping > 0 && data.error === "";
+  } catch (error) {
+    console.log(`new health check for ip ${ip} get error `, error?.message);
+  }
 }
 module.exports = {
   checkIP,
