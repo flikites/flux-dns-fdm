@@ -5,7 +5,12 @@ const dotenv = require("dotenv");
 dotenv.config();
 const axios = require("axios");
 
-const { api, findMostCommonResponse, getWorkingNodes } = require("./utils");
+const {
+  api,
+  findMostCommonResponse,
+  getWorkingNodes,
+  checkConnection,
+} = require("./utils");
 
 const clusterFilePath = path.join(process.env.FILE_PATH, "cluster_ip.txt");
 const RETRY = Number(process.env.RETRY ?? "5");
@@ -244,7 +249,7 @@ async function createNew(
       while (retry < RETRY) {
         for (const r of commonIps) {
           try {
-            if (await checkMinecraftActivity(r.ip, app_port)) {
+            if (await checkConnection(r.ip, app_port)) {
               await createOrUpdateRecord(r.ip, domain_name, zone_name);
               if (r.ip !== masterIp) {
                 await createOrUpdateFile(
@@ -261,7 +266,7 @@ async function createNew(
               break;
             }
           } catch (error) {
-            console.log(`Error while creating record: ${error?.message}`);
+            console.log(`Error while checking connection: ${error?.message}`);
           }
         }
         await new Promise((resolve) => setTimeout(resolve, RETRY_INTERVAL));
