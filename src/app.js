@@ -29,9 +29,9 @@ async function checkIP(workerData) {
   }
 
   try {
-    const ip = await getCurrentMasterFromFile();
+    const [ip, port] = await getCurrentMasterFromFile();
 
-    if (ip && (await checkIsNodeHealthy(ip))) {
+    if (ip && (await checkIsNodeHealthy(ip, port))) {
       let minecraftActive = 0;
       let attempts = 0;
 
@@ -98,7 +98,7 @@ async function checkIP(workerData) {
 async function createOrUpdateFile(liveIps, newMasterIp, zoneId, domainName) {
   try {
     const activeMaster = await getCurrentMasterRecord(zoneId, domainName);
-    const masterFromFile = await getCurrentMasterFromFile();
+    const [masterFromFile, _] = await getCurrentMasterFromFile();
     if (
       newMasterIp &&
       newMasterIp === activeMaster?.content &&
@@ -145,7 +145,7 @@ async function createOrUpdateFile(liveIps, newMasterIp, zoneId, domainName) {
   let fileContent = liveIps
     .map((ip) => {
       const ipType = ip.ip === newMasterIp ? "MASTER" : "SECONDARY";
-      return `${ip.ip}:${ipType}:${ip.hash}`;
+      return `${ip.ip}:${ipType}:${ip.hash}:${ip.port}`;
     })
     .join("\n");
 
@@ -181,15 +181,19 @@ async function createNew(
     console.log("Finding most common IPs...");
     const consensusIp = findMostCommonResponse(responseData).map((item) => {
       if (item.ip.includes(":")) {
-        return { ip: item.ip.split(":")[0], hash: item.hash };
+        return {
+          ip: item.ip.split(":")[0],
+          port: item.ip.split(":")[1],
+          hash: item.hash,
+        };
       }
-      return item;
+      return { ...item, port: "16127" };
     });
 
     const commonIps = [];
 
     for (const item of consensusIp) {
-      if (await checkIsNodeHealthy(item.ip)) {
+      if (await checkIsNodeHealthy(item.ip, item.port)) {
         commonIps.push(item);
         console.log(`node ${item.ip} is passed health check`);
       } else {
@@ -202,7 +206,8 @@ async function createNew(
       return;
     }
 
-    let masterIp = (await getCurrentMasterFromFile()) || commonIps?.[0].ip;
+    let [masterIp, _] = await getCurrentMasterFromFile();
+    masterIp = masterIp || commonIps?.[0].ip;
 
     if (oldMaster) {
       console.log("Old Master IP: ", oldMaster);
@@ -418,14 +423,15 @@ async function getCurrentMasterFromFile() {
   let row = ips?.find((c) => c.includes("MASTER"));
   console.log("masterRow ", row);
   let masterIP = row?.split(":")?.[0]?.trim();
+  let port = row?.split(":")?.[3]?.trim() ?? 16127;
   console.log("ip from master row ", masterIP);
-  return masterIP;
+  return [masterIP, port];
 }
 
-async function checkIsNodeHealthy(ip) {
+async function checkIsNodeHealthy(ip, port = "16127") {
   try {
     const data = await axios
-      .get(`http://${ip}:16127/daemon/getbenchmarks`)
+      .get(`http://${ip}:${port}/daemon/getbenchmarks`)
       .then((res) => {
         return JSON.parse(res.data?.data ?? `{}`);
       });
