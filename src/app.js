@@ -185,10 +185,11 @@ async function createNew(
       return { ...item, port: "16127" };
     });
 
+    console.log("consensusIp ", consensusIp);
     const commonIps = [];
 
     for (const item of consensusIp) {
-      if (await checkIsNodeHealthy(item.ip)) {
+      if (await checkIsNodeHealthy(item.ip, item.port)) {
         commonIps.push(item);
         console.log(`node ${item.ip} is passed health check`);
       } else {
