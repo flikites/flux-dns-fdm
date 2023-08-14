@@ -174,7 +174,7 @@ async function createRecord(
       );
     } else {
       console.log(
-        `record already exist with domain:${selectedRecord.name} ip:${selectedRecord.content} `
+        `record already exist with domain: ${selectedRecord.name} ip: ${selectedRecord.content} `
       );
     }
   } catch (error) {
