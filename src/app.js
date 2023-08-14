@@ -81,7 +81,7 @@ async function checkIP(workerData) {
     );
     console.log("----creating new record if required----");
     for (const [index, domainName] of domain_names.entries()) {
-      const ip = index < commonIps.length ? commonIps[index] : commonIps[0];
+      const ip = index < cleanips.length ? cleanips[index] : cleanips[0];
       await createRecord(
         ip,
         app_port,
