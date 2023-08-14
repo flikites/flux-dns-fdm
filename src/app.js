@@ -108,6 +108,9 @@ async function getValidRecords(zoneName, appPort, appName, commonIps) {
   for (const record of data.result) {
     try {
       await checkConnection(record.content, appPort);
+      if(!(await isCleanIp(record.content))) {
+        throw Error("ip is not clean need to be replaced");
+      }
       records.push(record);
     } catch (error) {
       console.log(
