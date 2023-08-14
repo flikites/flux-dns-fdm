@@ -59,12 +59,25 @@ async function checkIP(workerData) {
         );
       }
     }
+
+    const cleanips = [];
+
+    console.log("started checking cleaness of ips");
+
+    for(const ip of workingIPS) {
+      if(await isCleanIp(ip)) {
+        cleanips.push(ip);
+      }
+    }
+
+    console.log("clean ips ", cleanips);
+
     console.log("getting and updating dns record");
     const records = await getValidRecords(
       zone_name,
       app_port,
       app_name,
-      workingIPS
+      cleanips
     );
     console.log("----creating new record if required----");
     for (const [index, domainName] of domain_names.entries()) {
@@ -83,30 +96,6 @@ async function checkIP(workerData) {
   }
 }
 
-// async function getValidRecords(zoneName, appPort, appName, commonIps) {
-//   console.log("zoneName ", zoneName);
-//   console.log("appPort ", appPort);
-//   console.log("appName ", appName);
-//   const { data } = await api.get(
-//     `/zones/${zoneName}/dns_records?comment=${appName}&type=A`
-//   );
-//   const records = [];
-//   for (const record of data.result) {
-//     try {
-//       await checkConnection(record.content, appPort);
-//       records.push(record);
-//     } catch (error) {
-//       console.log(
-//         `deleting record for ip ${record.content} and domain ${record.name}`
-//       );
-//       await api
-//         .delete(`/zones/${zoneName}/dns_records/${record.id}`)
-//         .catch(console.log);
-//     }
-//   }
-//   console.log("---fetching valid dns record finished---");
-//   return records;
-// }
 
 async function getValidRecords(zoneName, appPort, appName, commonIps) {
   console.log("zoneName ", zoneName);
@@ -192,6 +181,22 @@ async function createRecord(
     console.log(error?.message);
     // console.log("connection check failed for ", selectedIp + ":" + appPort);
   }
+}
+
+async function isCleanIp(ip) {
+  try {
+    console.log("checking ip quality score for ip ", ip);
+    const { data } = await axios.get(`https://www.ipqualityscore.com/api/json/ip/${process.env.IP_QUALITY_KEY}/${ip}?strictness=2`);
+    // console.log("clean data ", data);
+    if(data.proxy || data.vpn || data.recent_abuse || data.tor || data.fraud_score >= 74) {
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.log("ipquality check failed for ip ", ip);
+    console.log("ip quality error ", error?.message ?? error);
+  }
+  return false;
 }
 
 module.exports = {
