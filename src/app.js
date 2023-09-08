@@ -5,19 +5,19 @@ const dotenv = require("dotenv");
 dotenv.config();
 const axios = require("axios");
 
-const {
-  api,
-  findMostCommonResponse,
-  getWorkingNodes,
-  checkConnection,
-} = require("./utils");
+const { findMostCommonResponse, getWorkingNodes } = require("./utils");
 
 const clusterFilePath = path.join(process.env.FILE_PATH, "cluster_ip.txt");
-const RETRY = Number(process.env.RETRY ?? "5");
-const RETRY_INTERVAL = Number(process.env.RETRY_INTERVAL ?? "15000");
+const recodsFilePath = path.join(process.env.RECORD_PATH, "records.json");
+const RETRY = Number(process.env.RETRY ?? "3");
+const RETRY_INTERVAL = Number(process.env.RETRY_INTERVAL ?? "60000");
+
+const MASTER_RETRY_INTERVAL = Number(
+  process.env.MASTER_RETRY_INTERVAL ?? "60000"
+);
 
 async function checkIP(workerData) {
-  const { app_name, app_port, zone_name, domain_name } = workerData;
+  const { app_name, app_port, domain_name } = workerData;
   try {
     await fs.access(clusterFilePath);
   } catch (error) {
@@ -38,7 +38,9 @@ async function checkIP(workerData) {
       console.log("Checking Minecraft activity...");
       while (attempts < 3 && !minecraftActive) {
         minecraftActive = await checkMinecraftActivity(ip, app_port);
-        await new Promise((resolve) => setTimeout(resolve, RETRY_INTERVAL));
+        await new Promise((resolve) =>
+          setTimeout(resolve, MASTER_RETRY_INTERVAL)
+        );
         attempts += 1;
         if (!minecraftActive) {
           console.log(
@@ -60,28 +62,25 @@ async function checkIP(workerData) {
           "The master node is active. It has passed the gamedig check. IP: ",
           ip
         );
-        const currentDnsMaster = await getCurrentMasterRecord(
-          zone_name,
-          domain_name
-        );
+        const currentDnsMaster = await getCurrentMasterRecord(domain_name);
         if (currentDnsMaster?.content !== ip) {
           console.log(
             "dns master is not matched with current healthy master so updating dns record"
           );
-          await createOrUpdateRecord(ip, domain_name, zone_name);
+          await createOrUpdateFileRecord(ip, domain_name);
         }
         return;
       } else {
         console.log(
           "Updating the master node IP. The old master node is not working."
         );
-        await createNew(app_name, app_port, zone_name, domain_name, ip);
+        await createNew(app_name, app_port, domain_name, ip);
       }
     } else {
       console.log(
         "The file cluster_ip.txt is empty. Creating and updating new master..."
       );
-      await createNew(app_name, app_port, zone_name, domain_name);
+      await createNew(app_name, app_port, domain_name);
     }
   } catch (error) {
     console.error(
@@ -91,13 +90,13 @@ async function checkIP(workerData) {
     console.log(
       "Updating the new record file. The file cluster_ip.txt does not exist or is empty."
     );
-    await createNew(app_name, app_port, zone_name, domain_name);
+    await createNew(app_name, app_port, domain_name);
   }
 }
 
-async function createOrUpdateFile(liveIps, newMasterIp, zoneId, domainName) {
+async function createOrUpdateFile(liveIps, newMasterIp, domainName) {
   try {
-    const activeMaster = await getCurrentMasterRecord(zoneId, domainName);
+    const activeMaster = await getCurrentMasterRecord(domainName);
     const [masterFromFile, _] = await getCurrentMasterFromFile();
     if (
       newMasterIp &&
@@ -154,13 +153,7 @@ async function createOrUpdateFile(liveIps, newMasterIp, zoneId, domainName) {
   console.log("File content:\n", fileContent);
 }
 
-async function createNew(
-  app_name,
-  app_port,
-  zone_name,
-  domain_name,
-  oldMaster = null
-) {
+async function createNew(app_name, app_port, domain_name, oldMaster = null) {
   try {
     const randomFluxNodes = await getWorkingNodes();
     const randomUrls = randomFluxNodes.map(
@@ -189,7 +182,7 @@ async function createNew(
       }
       return { ...item, port: "16127" };
     });
-
+    console.log("consensusIp ", consensusIp);
     const commonIps = [];
 
     for (const item of consensusIp) {
@@ -215,7 +208,7 @@ async function createNew(
       console.log("New Master IP: ", masterIp);
     }
     try {
-      const masterRecord = await getCurrentMasterRecord(zone_name, domain_name);
+      const masterRecord = await getCurrentMasterRecord(domain_name);
       if (
         masterRecord &&
         commonIps.find((cm) => cm.ip === masterRecord.content) &&
@@ -242,7 +235,7 @@ async function createNew(
     console.log(
       "Updating the file cluster_ip.txt without checking any connection..."
     );
-    await createOrUpdateFile(commonIps, masterIp, zone_name, domain_name);
+    await createOrUpdateFile(commonIps, masterIp, domain_name);
     console.log("Update to cluster_ip.txt file completed.");
 
     let foundMaster = false;
@@ -254,15 +247,10 @@ async function createNew(
       while (retry < RETRY) {
         for (const r of commonIps) {
           try {
-            if (await checkConnection(r.ip, app_port)) {
-              await createOrUpdateRecord(r.ip, domain_name, zone_name);
+            if (await checkMinecraftActivity(r.ip, app_port)) {
+              await createOrUpdateFileRecord(r.ip, domain_name);
               if (r.ip !== masterIp) {
-                await createOrUpdateFile(
-                  commonIps,
-                  r.ip,
-                  zone_name,
-                  domain_name
-                );
+                await createOrUpdateFile(commonIps, r.ip, domain_name);
               }
               retry = RETRY;
               success = true;
@@ -271,7 +259,7 @@ async function createNew(
               break;
             }
           } catch (error) {
-            console.log(`Error while checking connection: ${error?.message}`);
+            console.log(`Error while creating record: ${error?.message}`);
           }
         }
         await new Promise((resolve) => setTimeout(resolve, RETRY_INTERVAL));
@@ -292,7 +280,7 @@ async function createNew(
           masterIp = commonIps?.[currentIpIndex]?.ip;
         }
         console.log("updgrading secondary to new master ", masterIp);
-        await createOrUpdateFile(commonIps, masterIp, zone_name, domain_name);
+        await createOrUpdateFile(commonIps, masterIp, domain_name);
       }
     }
   } catch (error) {
@@ -337,15 +325,18 @@ async function checkMinecraftActivity(ip, app_port) {
   }
 }
 
-async function createOrUpdateRecord(selectedIp, domainName, zoneId) {
+async function createOrUpdateFileRecord(selectedIp, domainName) {
   const comment = "master";
-  const records = await api
-    .get(
-      `/zones/${zoneId}/dns_records?type=A&name=${domainName}&comment=${comment}`
-    )
-    .then(async ({ data }) => {
-      return data?.result ?? [];
-    });
+  // const filePath = path.join(__dirname, `${domainName}.json`);
+  let records = [];
+
+  try {
+    const fileContent = fs.readFileSync(recodsFilePath, "utf8");
+    records = JSON.parse(fileContent);
+  } catch (error) {
+    console.log(`Failed to read the file ${recodsFilePath}`);
+    console.log(error?.message);
+  }
 
   console.log("records ", records);
   const selectedRecord = records?.[0];
@@ -353,7 +344,7 @@ async function createOrUpdateRecord(selectedIp, domainName, zoneId) {
   if (records.length > 1) {
     for (let i = 1; i < records.length; i++) {
       try {
-        await api.delete(`/zones/${zoneId}/dns_records/${records[i].id}`);
+        records.splice(i, 1);
       } catch (error) {
         console.log(`failed to delete the record ${records[i].id}`);
         console.log(error?.message);
@@ -362,11 +353,9 @@ async function createOrUpdateRecord(selectedIp, domainName, zoneId) {
   }
 
   if (!selectedRecord) {
-    console.log(
-      `Creating new record for IP ${selectedIp} in Cloudflare DNS Server`
-    );
-    // Create new DNS record
-    await api.post(`/zones/${zoneId}/dns_records`, {
+    console.log(`Creating new record for IP ${selectedIp} in text file`);
+    // Create new record
+    records.push({
       type: "A",
       name: domainName,
       content: selectedIp,
@@ -374,47 +363,42 @@ async function createOrUpdateRecord(selectedIp, domainName, zoneId) {
       comment: comment,
       proxied: false,
     });
-    console.log(
-      `Created new record for IP ${selectedIp} in Cloudflare DNS Server`
-    );
+    fs.writeFileSync(recodsFilePath, JSON.stringify(records));
+    console.log(`Created new record for IP ${selectedIp} in text file`);
   } else {
     if (selectedIp === selectedRecord.content) {
       console.log(
-        "selected master and dns master is same so not updating dns record."
+        "selected master and file master is same so not updating file record."
       );
       return;
     }
-    console.log("we are going to set this ip in dns record", selectedIp);
-    console.log("currentDns record ip is ", selectedRecord.content);
+    console.log("we are going to set this ip in file record", selectedIp);
+    console.log("currentFile record ip is ", selectedRecord.content);
     console.log(
       "please check above log message to make sure it's spaming or not"
     );
-    await api.put(`/zones/${zoneId}/dns_records/${selectedRecord.id}`, {
-      type: "A",
-      name: domainName,
-      content: selectedIp,
-      ttl: 120,
-      proxied: false,
-      comment: comment,
-    });
+
+    // Update existing record
+    selectedRecord.content = selectedIp;
+    fs.writeFileSync(filePath, JSON.stringify(records));
+
     console.log(`Updated record with new master ip ${selectedIp}`);
   }
 }
 
-async function getCurrentMasterRecord(zoneId, domainName) {
+async function getCurrentMasterRecord(domainName) {
+  let records = [];
+
   try {
-    const records = await api
-      .get(
-        `/zones/${zoneId}/dns_records?type=A&name=${domainName}&comment=master`
-      )
-      .then(async ({ data }) => {
-        return data?.result ?? [];
-      });
-    return records?.[0];
+    const fileContent = fs.readFileSync(recodsFilePath, "utf8");
+    records = JSON.parse(fileContent);
   } catch (error) {
-    console.log("unable to find master in dns server ", error?.message);
+    console.log(`Failed to read the file ${recodsFilePath}`);
+    console.log(`Failed to read the file ${domainName}`);
+    console.log(error?.message);
   }
-  return undefined;
+
+  return records?.[0];
 }
 
 async function getCurrentMasterFromFile() {
@@ -423,7 +407,7 @@ async function getCurrentMasterFromFile() {
   let row = ips?.find((c) => c.includes("MASTER"));
   console.log("masterRow ", row);
   let masterIP = row?.split(":")?.[0]?.trim();
-  let port = row?.split(":")?.[3]?.trim() ?? 16127;
+  let port = row?.split(":")?.[3]?.trim();
   console.log("ip from master row ", masterIP);
   return [masterIP, port];
 }
