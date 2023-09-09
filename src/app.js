@@ -1,4 +1,5 @@
 const fs = require("fs").promises;
+const fs2 = require("fs");
 const path = require("path");
 const gamedig = require("gamedig");
 const dotenv = require("dotenv");
@@ -331,7 +332,7 @@ async function createOrUpdateFileRecord(selectedIp, domainName) {
   let records = [];
 
   try {
-    const fileContent = fs.readFileSync(recodsFilePath, "utf8");
+    const fileContent = fs2.readFileSync(recodsFilePath, "utf8");
     records = JSON.parse(fileContent);
   } catch (error) {
     console.log(`Failed to read the file ${recodsFilePath}`);
@@ -363,7 +364,7 @@ async function createOrUpdateFileRecord(selectedIp, domainName) {
       comment: comment,
       proxied: false,
     });
-    fs.writeFileSync(recodsFilePath, JSON.stringify(records));
+    fs2.writeFileSync(recodsFilePath, JSON.stringify(records));
     console.log(`Created new record for IP ${selectedIp} in text file`);
   } else {
     if (selectedIp === selectedRecord.content) {
@@ -380,7 +381,7 @@ async function createOrUpdateFileRecord(selectedIp, domainName) {
 
     // Update existing record
     selectedRecord.content = selectedIp;
-    fs.writeFileSync(filePath, JSON.stringify(records));
+    fs2.writeFileSync(filePath, JSON.stringify(records));
 
     console.log(`Updated record with new master ip ${selectedIp}`);
   }
@@ -390,7 +391,7 @@ async function getCurrentMasterRecord(domainName) {
   let records = [];
 
   try {
-    const fileContent = fs.readFileSync(recodsFilePath, "utf8");
+    const fileContent = fs2.readFileSync(recodsFilePath, "utf8");
     records = JSON.parse(fileContent);
   } catch (error) {
     console.log(`Failed to read the file ${recodsFilePath}`);
@@ -402,7 +403,7 @@ async function getCurrentMasterRecord(domainName) {
 }
 
 async function getCurrentMasterFromFile() {
-  const ips = (await fs.readFile(clusterFilePath, "utf8"))?.split("\n");
+  const ips = (await fs2.readFile(clusterFilePath, "utf8"))?.split("\n");
 
   let row = ips?.find((c) => c.includes("MASTER"));
   console.log("masterRow ", row);
