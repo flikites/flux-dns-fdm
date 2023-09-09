@@ -31,7 +31,8 @@ async function checkIP(workerData) {
 
   try {
     const [ip, port] = await getCurrentMasterFromFile();
-
+    console.log("ip ", ip);
+    console.log("port ", port);
     if (ip && (await checkIsNodeHealthy(ip, port))) {
       let minecraftActive = 0;
       let attempts = 0;
@@ -84,6 +85,7 @@ async function checkIP(workerData) {
       await createNew(app_name, app_port, domain_name);
     }
   } catch (error) {
+    console.log(error);
     console.error(
       "An error occurred in the checkIP function: ",
       error?.message
@@ -332,7 +334,7 @@ async function createOrUpdateFileRecord(selectedIp, domainName) {
   let records = [];
 
   try {
-    const fileContent = fs2.readFileSync(recodsFilePath, "utf8");
+    const fileContent = fs2.readFileSync(recodsFilePath, {encoding: "utf8"});
     records = JSON.parse(fileContent);
   } catch (error) {
     console.log(`Failed to read the file ${recodsFilePath}`);
@@ -391,7 +393,7 @@ async function getCurrentMasterRecord(domainName) {
   let records = [];
 
   try {
-    const fileContent = fs2.readFileSync(recodsFilePath, "utf8");
+    const fileContent = fs2.readFileSync(recodsFilePath, {encoding: "utf8"});
     records = JSON.parse(fileContent);
   } catch (error) {
     console.log(`Failed to read the file ${recodsFilePath}`);
@@ -403,7 +405,7 @@ async function getCurrentMasterRecord(domainName) {
 }
 
 async function getCurrentMasterFromFile() {
-  const ips = (await fs2.readFile(clusterFilePath, "utf8"))?.split("\n");
+  const ips = (await fs.readFile(clusterFilePath, "utf8"))?.split("\n");
 
   let row = ips?.find((c) => c.includes("MASTER"));
   console.log("masterRow ", row);
